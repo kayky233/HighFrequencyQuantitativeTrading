@@ -1,0 +1,14 @@
+{
+  "event_type": "price",
+  "source": "fixture",
+  "symbol": "HK.00700",
+  "headline": "Synthetic price event",
+  "body": "Synthetic ignition fixture for market-driven testing.",
+  "sentiment": -0.66,
+  "price": 320.5,
+  "quantity": 2,
+  "metadata": {
+    "category": "price_break",
+    "fixture": true
+  }
+}

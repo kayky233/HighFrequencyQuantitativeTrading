@@ -1,0 +1,3282 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HFQT 实时量化看板</title>
+    <style>
+      :root {
+        --bg: #f5efe2;
+        --bg-strong: #ead7b7;
+        --panel: rgba(255, 250, 242, 0.9);
+        --ink: #1e1d1a;
+        --muted: #615b4c;
+        --accent: #0e6b50;
+        --accent-2: #b95c2e;
+        --line: rgba(30, 29, 26, 0.12);
+        --shadow: 0 20px 60px rgba(61, 40, 18, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Aptos", "Trebuchet MS", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(255, 255, 255, 0.7), transparent 38%),
+          radial-gradient(circle at bottom right, rgba(185, 92, 46, 0.16), transparent 28%),
+          linear-gradient(145deg, var(--bg) 0%, var(--bg-strong) 100%);
+        min-height: 100vh;
+      }
+
+      .shell {
+        width: min(1240px, calc(100vw - 32px));
+        margin: 28px auto;
+        display: grid;
+        grid-template-columns: 420px 1fr;
+        gap: 18px;
+      }
+
+      .panel {
+        background: var(--panel);
+        backdrop-filter: blur(14px);
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        box-shadow: var(--shadow);
+      }
+
+      .left {
+        padding: 24px;
+        position: sticky;
+        top: 20px;
+        align-self: start;
+      }
+
+      .right {
+        padding: 24px;
+        min-height: 720px;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, var(--accent), #63b79a);
+      }
+
+      h1 {
+        margin: 12px 0 8px;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: clamp(30px, 4vw, 44px);
+        line-height: 1.02;
+      }
+
+      .lede {
+        margin: 0 0 18px;
+        line-height: 1.65;
+        color: var(--muted);
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 18px;
+      }
+
+      .chip {
+        padding: 10px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.6);
+        font-size: 13px;
+      }
+
+      .ui-version {
+        margin-left: 8px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(33, 111, 237, 0.25);
+        background: rgba(33, 111, 237, 0.1);
+        color: #216fed;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      form {
+        display: grid;
+        gap: 12px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      label {
+        display: grid;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      input,
+      textarea,
+      select {
+        width: 100%;
+        border: 1px solid rgba(30, 29, 26, 0.14);
+        border-radius: 16px;
+        padding: 12px 14px;
+        background: rgba(255, 255, 255, 0.92);
+        color: var(--ink);
+        font: inherit;
+      }
+
+      textarea {
+        min-height: 120px;
+        resize: vertical;
+      }
+
+      .toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 12px 14px;
+        background: rgba(255, 255, 255, 0.72);
+      }
+
+      .toggle-row label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--ink);
+        font-size: 14px;
+      }
+
+      .toggle-row input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        margin: 0;
+      }
+
+      .config-center {
+        margin: 16px 0 18px;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.72);
+        padding: 14px 16px;
+      }
+
+      .config-center > summary {
+        list-style: none;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        font-weight: 600;
+      }
+
+      .config-center > summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .config-center > summary::after {
+        content: "展开";
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .config-center[open] > summary::after {
+        content: "收起";
+      }
+
+      .config-note {
+        margin: 10px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      .config-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 14px 0;
+      }
+
+      .config-search {
+        margin: 0 0 12px;
+      }
+
+      .config-search input {
+        background: rgba(255, 255, 255, 0.92);
+      }
+
+      .config-groups {
+        display: grid;
+        gap: 12px;
+      }
+
+      .config-group {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 12px 14px;
+        background: rgba(255, 255, 255, 0.82);
+      }
+
+      .config-group > summary {
+        list-style: none;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        font-weight: 600;
+      }
+
+      .config-group > summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .config-group > summary::after {
+        content: "展开";
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .config-group[open] > summary::after {
+        content: "收起";
+      }
+
+      .config-group-desc {
+        margin: 10px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
+      .config-summary-meta {
+        margin-left: auto;
+        padding-right: 18px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .config-item-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .config-item {
+        border: 1px solid rgba(30, 29, 26, 0.08);
+        border-radius: 14px;
+        padding: 12px;
+        background: rgba(245, 239, 226, 0.38);
+      }
+
+      .config-item-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: baseline;
+        margin-bottom: 6px;
+      }
+
+      .config-item-title {
+        font-weight: 600;
+        font-size: 14px;
+      }
+
+      .config-key {
+        color: var(--muted);
+        font-size: 12px;
+        font-family: Consolas, "SFMono-Regular", monospace;
+      }
+
+      .config-help {
+        display: grid;
+        gap: 4px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+        margin-bottom: 8px;
+      }
+
+      .config-output {
+        margin-top: 14px;
+      }
+
+      .config-output textarea {
+        min-height: 220px;
+        font-family: Consolas, "SFMono-Regular", monospace;
+      }
+
+      .secret-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 6px;
+      }
+
+      button {
+        border: 0;
+        border-radius: 999px;
+        padding: 13px 18px;
+        cursor: pointer;
+        font: inherit;
+        transition: transform 0.14s ease, box-shadow 0.14s ease, opacity 0.14s ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+      }
+
+      .primary {
+        background: linear-gradient(135deg, var(--accent), #1d8d6a);
+        color: #fff;
+        box-shadow: 0 10px 30px rgba(14, 107, 80, 0.28);
+      }
+
+      .secondary {
+        background: rgba(255, 255, 255, 0.85);
+        color: var(--ink);
+        border: 1px solid var(--line);
+      }
+
+      .status {
+        min-height: 24px;
+        margin-top: 12px;
+        color: var(--muted);
+      }
+
+      .result-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      .result-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .result-card {
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 18px;
+        background: rgba(255, 255, 255, 0.62);
+      }
+
+      .result-card h3 {
+        margin: 0 0 10px;
+        font-size: 16px;
+      }
+
+      .ticker-bar {
+        margin: 12px 0 20px;
+        border-radius: 18px;
+        border: 1px solid rgba(30, 29, 26, 0.1);
+        background: rgba(255, 255, 255, 0.75);
+        box-shadow: 0 10px 26px rgba(30, 29, 26, 0.08);
+        padding: 10px 14px;
+        overflow: hidden;
+      }
+
+      .ticker-track {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(120px, max-content);
+        gap: 14px;
+        align-items: center;
+      }
+
+      .ticker-item {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 12px;
+        color: rgba(30, 29, 26, 0.6);
+      }
+
+      .ticker-item strong {
+        font-size: 14px;
+        color: rgba(30, 29, 26, 0.9);
+      }
+
+      .ticker-item .ticker-change {
+        font-weight: 600;
+      }
+
+      .ticker-change.positive {
+        color: #0e6b50;
+      }
+
+      .ticker-change.negative {
+        color: #b95c2e;
+      }
+
+      .ticker-change.neutral {
+        color: rgba(30, 29, 26, 0.6);
+      }
+
+      .live-stream-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      .live-stream-header h3 {
+        margin-bottom: 0;
+      }
+
+      .live-stream-filters {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .live-stream-filters .chip {
+        border: 1px solid rgba(30, 29, 26, 0.16);
+        background: rgba(255, 255, 255, 0.75);
+        color: rgba(30, 29, 26, 0.7);
+        cursor: pointer;
+      }
+
+      .live-stream-filters .chip[aria-pressed="true"] {
+        background: rgba(33, 111, 237, 0.12);
+        border-color: rgba(33, 111, 237, 0.2);
+        color: #216fed;
+        font-weight: 600;
+      }
+
+      .collapsible-card {
+        display: grid;
+        gap: 10px;
+      }
+
+      .collapsible-card > summary,
+      .chart-panel > summary {
+        list-style: none;
+        cursor: pointer;
+      }
+
+      .collapsible-card > summary::-webkit-details-marker,
+      .chart-panel > summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .collapsible-card > summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      .collapsible-card > summary::after {
+        content: "展开";
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .collapsible-card[open] > summary::after {
+        content: "收起";
+      }
+
+      .collapsible-body {
+        display: grid;
+        gap: 10px;
+      }
+
+      .metric {
+        display: grid;
+        gap: 6px;
+      }
+
+      .metric strong {
+        font-size: 28px;
+        font-family: Georgia, "Times New Roman", serif;
+      }
+
+      .list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .list-item {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 12px 14px;
+        background: rgba(255, 255, 255, 0.72);
+      }
+
+      .list-item strong {
+        display: block;
+        margin-bottom: 4px;
+      }
+
+      .list-item span {
+        display: block;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .list-item.bullish-setup {
+        border-color: rgba(14, 107, 80, 0.32);
+        background: linear-gradient(135deg, rgba(14, 107, 80, 0.08), rgba(255, 255, 255, 0.76));
+        box-shadow: inset 0 0 0 1px rgba(14, 107, 80, 0.08);
+      }
+
+      .trigger-summary {
+        border-left: 3px solid rgba(14, 107, 80, 0.35);
+        padding-left: 10px;
+      }
+
+      .news-link {
+        color: var(--accent);
+        text-decoration: none;
+        font-weight: 600;
+      }
+
+      .news-link:hover {
+        text-decoration: underline;
+      }
+
+      .news-meta {
+        color: rgba(30, 29, 26, 0.58);
+        font-size: 12px;
+        margin-left: 6px;
+      }
+
+      .chart-external-link {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: 8px;
+      }
+
+      .chart-summary-link {
+        padding: 4px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(33, 111, 237, 0.25);
+        color: #216fed;
+        text-decoration: none;
+        font-size: 12px;
+        font-weight: 600;
+        background: rgba(33, 111, 237, 0.08);
+      }
+
+      .chart-summary-link:hover {
+        background: rgba(33, 111, 237, 0.14);
+      }
+
+      .position-card {
+        border-radius: 16px;
+        border: 1px solid rgba(30, 29, 26, 0.08);
+        background: #ffffff;
+        padding: 14px 16px;
+        box-shadow: 0 10px 24px rgba(30, 29, 26, 0.08);
+        display: grid;
+        gap: 10px;
+      }
+
+      .position-card + .position-card {
+        margin-top: 12px;
+      }
+
+      .position-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .position-header strong {
+        font-size: 15px;
+      }
+
+      .position-badge {
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+        background: rgba(30, 29, 26, 0.08);
+        color: rgba(30, 29, 26, 0.65);
+      }
+
+      .position-badge.long {
+        background: rgba(14, 107, 80, 0.12);
+        color: #0e6b50;
+      }
+
+      .position-badge.short {
+        background: rgba(185, 92, 46, 0.16);
+        color: #b95c2e;
+      }
+
+      .position-subtitle {
+        font-size: 12px;
+        color: rgba(30, 29, 26, 0.6);
+      }
+
+      .position-metrics {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .position-metric {
+        display: grid;
+        gap: 4px;
+        font-size: 12px;
+        color: rgba(30, 29, 26, 0.55);
+      }
+
+      .position-metric strong {
+        font-size: 14px;
+        color: rgba(30, 29, 26, 0.9);
+      }
+
+      .position-footer {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .position-pnl {
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      .position-pnl.positive {
+        color: #0e6b50;
+      }
+
+      .position-pnl.negative {
+        color: #b95c2e;
+      }
+
+      .position-pnl.neutral {
+        color: rgba(30, 29, 26, 0.6);
+      }
+
+      .position-fee {
+        font-size: 12px;
+        color: rgba(30, 29, 26, 0.55);
+      }
+
+      .position-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .position-link {
+        padding: 6px 12px;
+        border-radius: 10px;
+        background: rgba(33, 111, 237, 0.12);
+        color: #216fed;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 12px;
+      }
+
+      .position-link:hover {
+        background: rgba(33, 111, 237, 0.18);
+      }
+
+      @media (max-width: 900px) {
+        .position-metrics {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: Consolas, "SFMono-Regular", monospace;
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .full {
+        grid-column: 1 / -1;
+      }
+
+      .accent {
+        color: var(--accent-2);
+      }
+
+      .tone-positive {
+        color: var(--accent);
+      }
+
+      .tone-negative {
+        color: #a03724;
+      }
+
+      .tone-flat {
+        color: var(--ink);
+      }
+
+      .submetrics {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .submetric {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.72);
+      }
+
+      .submetric span {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        margin-bottom: 4px;
+      }
+
+      .submetric strong {
+        font-size: 18px;
+        font-family: Georgia, "Times New Roman", serif;
+      }
+
+      .chart-stack {
+        display: grid;
+        gap: 12px;
+      }
+
+      .chart-panel {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.72);
+        overflow: hidden;
+      }
+
+      .chart-panel > summary {
+        position: relative;
+        padding: 14px 16px;
+      }
+
+      .chart-panel > summary::after {
+        content: "+";
+        position: absolute;
+        right: 16px;
+        top: 14px;
+        font-size: 20px;
+        color: var(--muted);
+      }
+
+      .chart-panel[open] > summary::after {
+        content: "−";
+      }
+
+      .chart-summary {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+        padding-right: 28px;
+      }
+
+      .chart-summary-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .chart-summary strong {
+        display: block;
+        font-size: 18px;
+        margin-bottom: 4px;
+      }
+
+      .chart-summary-title strong {
+        margin-bottom: 0;
+      }
+
+      .chart-summary span {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.4;
+      }
+
+      .chart-body {
+        display: grid;
+        gap: 12px;
+        padding: 0 16px 16px;
+      }
+
+      .chart-svg {
+        width: 100%;
+        height: auto;
+        display: block;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(241, 231, 213, 0.7)),
+          radial-gradient(circle at top left, rgba(14, 107, 80, 0.08), transparent 40%);
+      }
+
+      .chart-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .chart-trigger-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .chart-trigger-item {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 10px 12px;
+        background: rgba(255, 255, 255, 0.8);
+      }
+
+      .chart-trigger-item span {
+        display: block;
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+
+      .chart-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 8px 10px;
+        background: rgba(255, 255, 255, 0.78);
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .chart-empty {
+        border: 1px dashed var(--line);
+        border-radius: 16px;
+        padding: 16px;
+        color: var(--muted);
+        background: rgba(255, 255, 255, 0.52);
+      }
+
+      .owner-box {
+        margin-bottom: 18px;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.65);
+      }
+
+      .owner-box p {
+        margin: 8px 0 0;
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      @media (max-width: 980px) {
+        .shell {
+          grid-template-columns: 1fr;
+        }
+
+        .left {
+          position: static;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .grid,
+        .result-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .chart-summary {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel left">
+        <div class="eyebrow"><span class="dot"></span> HFQT Live Console</div>
+        <h1>实时看当前分析、交易与盈亏</h1>
+        <p class="lede">
+          这个界面现在会自动轮询最新网络情报，实时刷新候选交易目标、最近订单状态和组合盈亏。
+          手动按钮依然保留，但页面本身已经是一个可持续刷新的看板。
+        </p>
+
+        <div class="chips" id="chips"></div>
+
+        <div class="owner-box">
+          <label>
+            Owner Token
+            <input id="owner-token" name="owner-token" type="password" placeholder="只有你自己知道的控制口令" />
+          </label>
+          <div class="actions">
+            <button class="secondary" type="button" id="owner-lock-btn">锁定交易</button>
+            <button class="secondary" type="button" id="owner-unlock-btn">解锁交易</button>
+          </div>
+          <p id="owner-status-text">系统权限未启用。</p>
+        </div>
+
+        <details class="config-center" id="config-center">
+          <summary>系统配置中心</summary>
+          <p class="config-note">
+            这里编辑的是本地浏览器里的配置草稿，不会直接改服务器上的 `.env`。
+            配完后点“生成 .env 草稿”，再由用户自己写入本地 `.env`，或者写入 `HFQT_ENV_FILE`
+            指向的环境文件，再重启服务。
+          </p>
+          <div class="config-actions">
+            <button class="secondary" type="button" id="config-generate-btn">生成 .env 草稿</button>
+            <button class="secondary" type="button" id="config-copy-btn">复制草稿</button>
+            <button class="secondary" type="button" id="config-reset-btn">恢复当前环境</button>
+          </div>
+          <div class="config-search">
+            <label>
+              搜索配置项
+              <input id="config-search" type="text" placeholder="输入参数名、中文说明、broker、uSmart、DeepSeek..." />
+            </label>
+          </div>
+          <div class="config-groups" id="config-groups">
+            <div class="list-item">
+              <strong>等待配置目录</strong>
+              <span>页面初始化后，这里会按分组加载全部可配置参数。</span>
+            </div>
+          </div>
+          <div class="config-output">
+            <label>
+              `.env` 草稿输出
+              <textarea id="config-output" readonly>生成后会在这里显示。</textarea>
+            </label>
+          </div>
+        </details>
+
+        <form id="signal-form">
+          <label>
+            观察列表
+            <input id="watchlist" name="watchlist" value="US.IBIT,US.MSTR,US.COIN,US.MARA,US.RIOT,US.BITO,US.NVDA,US.AAPL,US.MSFT,US.AMZN,US.META,HK.00700" />
+          </label>
+
+          <div class="grid">
+            <label>
+              手工标的
+              <input id="symbol" name="symbol" value="US.IBIT" />
+            </label>
+            <label>
+              抓取关键词
+              <input id="query" name="query" value="IBIT bitcoin ETF inflow OR BTC news" />
+            </label>
+          </div>
+
+          <div class="grid">
+            <label>
+              数量
+              <input id="quantity" name="quantity" type="number" value="1" step="0.1" />
+            </label>
+            <label>
+              情绪分数
+              <input id="sentiment" name="sentiment" type="number" value="0.78" step="0.01" min="-1" max="1" />
+            </label>
+          </div>
+
+          <label>
+            参考价格
+            <input id="price" name="price" type="number" value="52.4" step="0.01" />
+          </label>
+
+          <label>
+            标题
+            <input id="headline" name="headline" value="Bitcoin ETF inflows accelerate as macro risk appetite improves" />
+          </label>
+
+          <label>
+            正文 / 摘要
+            <textarea id="body" name="body">Fresh ETF flow data and crypto market commentary point to renewed spot BTC demand, improving near-term sentiment for IBIT.</textarea>
+          </label>
+
+          <div class="grid">
+            <label>
+              分析模式
+              <select id="analysis-mode" name="analysis-mode">
+                <option value="mock">MockReasoner</option>
+                <option value="llm">DeepSeek / LLM</option>
+              </select>
+            </label>
+            <label>
+              执行通道
+              <select id="broker" name="broker">
+                <option value="local_paper">local_paper</option>
+                <option value="futu_sim">futu_sim</option>
+                <option value="usmart">usmart</option>
+              </select>
+            </label>
+            <label>
+              模型档位
+              <select id="llm-mode" name="llm-mode">
+                <option value="primary">主力 32B</option>
+                <option value="fallback">保底 14B</option>
+                <option value="auto">自动降级</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="grid">
+            <label>
+              自动刷新间隔（秒）
+              <input id="refresh-interval" name="refresh-interval" type="number" min="5" step="1" value="20" />
+            </label>
+            <label>
+              最后刷新时间
+              <input id="last-refresh" name="last-refresh" value="尚未刷新" readonly />
+            </label>
+          </div>
+
+          <div class="toggle-row">
+            <label for="auto-refresh">
+              <input id="auto-refresh" name="auto-refresh" type="checkbox" checked />
+              自动刷新实时看板
+            </label>
+            <span style="font-size: 12px; color: var(--muted);">建议 15-30 秒，避免过度轮询</span>
+          </div>
+
+          <div class="toggle-row">
+            <label for="auto-trade">
+              <input id="auto-trade" name="auto-trade" type="checkbox" />
+              自动执行 Top 候选
+            </label>
+            <span style="font-size: 12px; color: var(--muted);">默认关闭；仅对 execute 桶触发，并带冷却去重</span>
+          </div>
+
+          <div class="toggle-row">
+            <label for="translate-zh">
+              <input id="translate-zh" name="translate-zh" type="checkbox" />
+              翻译成中文
+            </label>
+            <span style="font-size: 12px; color: var(--muted);">默认关闭，只在演示给客户时打开</span>
+          </div>
+
+          <div class="actions">
+            <button class="primary" type="button" id="live-refresh-btn">立即刷新实时看板</button>
+            <button class="secondary" type="button" id="fetch-btn">抓取并分析最新情报</button>
+            <button class="secondary" type="submit" id="run-btn">提交手工事件</button>
+            <button class="secondary" type="button" id="latency-test-btn">5 秒压测</button>
+            <button class="secondary" type="button" id="demo-profit-btn">生成演示收益</button>
+            <button class="secondary" type="button" id="sample-btn">填充样例</button>
+          </div>
+        </form>
+
+        <div class="status" id="status">实时看板已准备就绪。</div>
+      </section>
+
+      <section class="panel right">
+        <div class="result-header">
+          <div>
+            <div class="eyebrow">Live Snapshot</div>
+            <h2 style="margin: 8px 0 0;">实时分析与交易状态</h2>
+          </div>
+          <div>
+            <span id="runtime-note" class="chip">等待首次刷新</span>
+            <span class="ui-version">UI v2</span>
+          </div>
+        </div>
+
+        <section class="ticker-bar" id="ticker-bar" aria-label="Watchlist ticker">
+          <div class="ticker-track" id="ticker-track"></div>
+        </section>
+
+        <div class="result-grid">
+          <article class="result-card">
+            <h3>当前交易目标</h3>
+            <div class="metric">
+              <span>Top Candidates</span>
+              <strong id="intent-action">-</strong>
+              <span id="intent-confidence">Confidence: -</span>
+              <span id="intent-candidates">等待候选池刷新。</span>
+              <span id="intent-rationale">等待实时分析结果。</span>
+            </div>
+          </article>
+
+          <article class="result-card">
+            <h3>信号与风控</h3>
+            <div class="metric">
+              <span>Status</span>
+              <strong id="risk-status">-</strong>
+              <span id="risk-threshold">Threshold: -</span>
+              <span id="risk-reasons">等待风控结果。</span>
+            </div>
+          </article>
+
+          <article class="result-card">
+            <h3>最新订单</h3>
+            <div class="metric">
+              <span>Latest Order</span>
+              <strong id="order-status">-</strong>
+              <span id="order-note">当前暂无订单。</span>
+            </div>
+          </article>
+
+          <article class="result-card">
+            <h3>模型与刷新</h3>
+            <div class="metric">
+              <span>Provider</span>
+              <strong id="provider-name">-</strong>
+              <span id="provider-model">等待配置。</span>
+              <span id="provider-agents">等待 Agent 栈信息。</span>
+            </div>
+          </article>
+
+          <article class="result-card">
+            <h3>组合盈亏</h3>
+            <div class="metric">
+              <span>Total PnL</span>
+              <strong id="portfolio-total-pnl">-</strong>
+              <span id="portfolio-breakdown">等待组合收益刷新。</span>
+              <span id="portfolio-return">Return: -</span>
+              <span id="portfolio-exposure">Exposure: -</span>
+            </div>
+          </article>
+
+          <article class="result-card">
+            <h3>持仓明细</h3>
+            <div class="list" id="portfolio-positions">
+              <div class="list-item">
+                <strong>暂无持仓</strong>
+                <span>成交后，这里会显示每个标的的仓位与盈亏。</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="result-card full">
+            <h3>收益拆解</h3>
+            <div class="submetrics" id="portfolio-metrics">
+              <div class="submetric">
+                <span>成本基准</span>
+                <strong>-</strong>
+              </div>
+              <div class="submetric">
+                <span>市值敞口</span>
+                <strong>-</strong>
+              </div>
+              <div class="submetric">
+                <span>成交笔数</span>
+                <strong>-</strong>
+              </div>
+              <div class="submetric">
+                <span>盈利 / 亏损持仓</span>
+                <strong>-</strong>
+              </div>
+            </div>
+          </article>
+
+          <article class="result-card">
+            <h3>自动刷新状态</h3>
+            <div class="metric">
+              <span>Live Status</span>
+              <strong id="live-state">-</strong>
+              <span id="live-meta">等待实时看板初始化。</span>
+            </div>
+          </article>
+
+          <article class="result-card full">
+            <h3>观察列表候选</h3>
+            <div class="list" id="watchlist-candidates">
+              <div class="list-item">
+                <strong>等待候选列表</strong>
+                <span>实时刷新后，这里会列出观察列表中的全部候选标的。</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="result-card full">
+            <div class="live-stream-header">
+              <h3>最近分析与订单</h3>
+              <div class="live-stream-filters" role="tablist" aria-label="Live stream filters">
+                <button class="chip" type="button" data-filter="all" aria-pressed="true">全部</button>
+                <button class="chip" type="button" data-filter="orders" aria-pressed="false">订单</button>
+                <button class="chip" type="button" data-filter="intents" aria-pressed="false">意图</button>
+              </div>
+            </div>
+            <div class="list" id="live-feed">
+              <div class="list-item">
+                <strong>暂无实时数据</strong>
+                <span>开启自动刷新后，这里会显示最近分析与订单状态。</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="result-card full">
+            <div class="live-stream-header">
+              <h3>抓取明细</h3>
+            </div>
+            <div class="list" id="intel-items">
+              <div class="list-item">
+                <strong>等待抓取明细</strong>
+                <span>完成一次抓取后，这里会列出抓到的内容与来源。</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="result-card full">
+            <h3>原始结果 JSON</h3>
+            <pre id="raw-json">等待返回结果。</pre>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const chips = document.getElementById("chips");
+      const form = document.getElementById("signal-form");
+      const statusEl = document.getElementById("status");
+      const runtimeNoteEl = document.getElementById("runtime-note");
+      const rawJsonEl = document.getElementById("raw-json");
+      const ownerTokenEl = document.getElementById("owner-token");
+      const ownerLockButton = document.getElementById("owner-lock-btn");
+      const ownerUnlockButton = document.getElementById("owner-unlock-btn");
+      const ownerStatusTextEl = document.getElementById("owner-status-text");
+      const configCenterEl = document.getElementById("config-center");
+      const configGroupsEl = document.getElementById("config-groups");
+      const configOutputEl = document.getElementById("config-output");
+      const configSearchEl = document.getElementById("config-search");
+      const configGenerateButton = document.getElementById("config-generate-btn");
+      const configCopyButton = document.getElementById("config-copy-btn");
+      const configResetButton = document.getElementById("config-reset-btn");
+      const sampleButton = document.getElementById("sample-btn");
+      const demoProfitButton = document.getElementById("demo-profit-btn");
+      const fetchButton = document.getElementById("fetch-btn");
+      const latencyTestButton = document.getElementById("latency-test-btn");
+      const liveRefreshButton = document.getElementById("live-refresh-btn");
+      const analysisModeEl = document.getElementById("analysis-mode");
+      const llmModeEl = document.getElementById("llm-mode");
+      const brokerEl = document.getElementById("broker");
+      const translateZhEl = document.getElementById("translate-zh");
+      const autoRefreshEl = document.getElementById("auto-refresh");
+      const autoTradeEl = document.getElementById("auto-trade");
+      const refreshIntervalEl = document.getElementById("refresh-interval");
+      const watchlistEl = document.getElementById("watchlist");
+      const lastRefreshEl = document.getElementById("last-refresh");
+      const tickerTrackEl = document.getElementById("ticker-track");
+
+      let demoConfig = null;
+      let configCatalog = null;
+      let ownerControl = null;
+      let autoRefreshHandle = null;
+      let autoRefreshGeneration = 0;
+      let liveBusy = false;
+      const chartOpenState = new Set();
+      const STORAGE_KEYS = {
+        dashboardState: "hfqt.dashboard.state.v1",
+        liveSnapshot: "hfqt.dashboard.liveSnapshot.v1",
+        rawJson: "hfqt.dashboard.rawJson.v1",
+        collapsibles: "hfqt.dashboard.collapsibles.v1",
+        chartPanels: "hfqt.dashboard.chartPanels.v1",
+        liveStreamFilter: "hfqt.dashboard.liveStreamFilter.v1",
+        configDraft: "hfqt.dashboard.configDraft.v1",
+        configSearch: "hfqt.dashboard.configSearch.v1",
+      };
+
+      function storageGet(key, fallback = null) {
+        try {
+          const raw = window.localStorage.getItem(key);
+          return raw ? JSON.parse(raw) : fallback;
+        } catch (error) {
+          console.warn("storageGet failed", key, error);
+          return fallback;
+        }
+      }
+
+      function storageSet(key, value) {
+        try {
+          window.localStorage.setItem(key, JSON.stringify(value));
+        } catch (error) {
+          console.warn("storageSet failed", key, error);
+        }
+      }
+
+      function getConfigDraft() {
+        const draft = storageGet(STORAGE_KEYS.configDraft, {});
+        return draft && typeof draft === "object" ? draft : {};
+      }
+
+      function setConfigDraft(draft) {
+        storageSet(STORAGE_KEYS.configDraft, draft);
+      }
+
+      function getConfigSearch() {
+        return String(storageGet(STORAGE_KEYS.configSearch, "") || "");
+      }
+
+      function setConfigSearch(value) {
+        storageSet(STORAGE_KEYS.configSearch, String(value || ""));
+      }
+
+      function persistChartOpenState() {
+        storageSet(STORAGE_KEYS.chartPanels, Array.from(chartOpenState));
+      }
+
+      function restoreChartOpenState() {
+        chartOpenState.clear();
+        const values = storageGet(STORAGE_KEYS.chartPanels, []);
+        if (!Array.isArray(values)) return;
+        values.forEach((symbol) => {
+          if (symbol) {
+            chartOpenState.add(String(symbol));
+          }
+        });
+      }
+
+      function snapshotDashboardState() {
+        return {
+          watchlist: watchlistEl.value,
+          symbol: document.getElementById("symbol").value,
+          query: document.getElementById("query").value,
+          quantity: document.getElementById("quantity").value,
+          sentiment: document.getElementById("sentiment").value,
+          price: document.getElementById("price").value,
+          headline: document.getElementById("headline").value,
+          body: document.getElementById("body").value,
+          analysisMode: analysisModeEl.value,
+          broker: brokerEl.value,
+          llmMode: llmModeEl.value,
+          translateZh: translateZhEl.checked,
+          autoRefresh: autoRefreshEl.checked,
+          autoTrade: autoTradeEl.checked,
+          refreshInterval: refreshIntervalEl.value,
+          lastRefresh: lastRefreshEl.value,
+        };
+      }
+
+      function persistDashboardState() {
+        storageSet(STORAGE_KEYS.dashboardState, snapshotDashboardState());
+      }
+
+      function restoreDashboardState() {
+        const state = storageGet(STORAGE_KEYS.dashboardState, null);
+        if (!state || typeof state !== "object") {
+          return false;
+        }
+        watchlistEl.value = state.watchlist || watchlistEl.value;
+        document.getElementById("symbol").value = state.symbol || document.getElementById("symbol").value;
+        document.getElementById("query").value = state.query || document.getElementById("query").value;
+        document.getElementById("quantity").value = state.quantity || document.getElementById("quantity").value;
+        document.getElementById("sentiment").value = state.sentiment || document.getElementById("sentiment").value;
+        document.getElementById("price").value = state.price || document.getElementById("price").value;
+        document.getElementById("headline").value = state.headline || document.getElementById("headline").value;
+        document.getElementById("body").value = state.body || document.getElementById("body").value;
+        analysisModeEl.value = state.analysisMode || analysisModeEl.value;
+        brokerEl.value = state.broker || brokerEl.value;
+        llmModeEl.value = state.llmMode || llmModeEl.value;
+        translateZhEl.checked = Boolean(state.translateZh);
+        autoRefreshEl.checked = state.autoRefresh !== undefined ? Boolean(state.autoRefresh) : autoRefreshEl.checked;
+        autoTradeEl.checked = state.autoTrade !== undefined ? Boolean(state.autoTrade) : autoTradeEl.checked;
+        refreshIntervalEl.value = state.refreshInterval || refreshIntervalEl.value;
+        lastRefreshEl.value = state.lastRefresh || lastRefreshEl.value;
+        return true;
+      }
+
+      function persistCollapsibleState(targetId, open) {
+        const state = storageGet(STORAGE_KEYS.collapsibles, {});
+        state[targetId] = Boolean(open);
+        storageSet(STORAGE_KEYS.collapsibles, state);
+      }
+
+      function restoreCollapsibleState(targetId) {
+        const state = storageGet(STORAGE_KEYS.collapsibles, {});
+        return Boolean(state?.[targetId]);
+      }
+
+      function setStatus(message) {
+        statusEl.textContent = message;
+      }
+
+      function formatNumber(value, digits = 2) {
+        return typeof value === "number" && Number.isFinite(value) ? value.toFixed(digits) : "-";
+      }
+
+      function formatSignedNumber(value, digits = 2) {
+        if (typeof value !== "number" || !Number.isFinite(value)) return "-";
+        return `${value >= 0 ? "+" : ""}${value.toFixed(digits)}`;
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function formatClock(value) {
+        if (!value) return "-";
+        const date = new Date(value);
+        if (!Number.isFinite(date.getTime())) return "-";
+        return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      }
+
+      function formatTickChange(value, reference) {
+        const price = Number(value);
+        const base = Number(reference);
+        if (!Number.isFinite(price) || !Number.isFinite(base) || base === 0) {
+          return { text: "--", cls: "neutral" };
+        }
+        const delta = price - base;
+        const pct = (delta / base) * 100;
+        const cls = delta > 0 ? "positive" : delta < 0 ? "negative" : "neutral";
+        return { text: `${formatSignedNumber(delta)} (${formatSignedNumber(pct)}%)`, cls };
+      }
+
+      function symbolToYahoo(symbol) {
+        const raw = String(symbol || "").trim();
+        if (!raw) return "";
+        const parts = raw.split(".");
+        if (parts.length < 2) return raw;
+        const market = parts[0].toUpperCase();
+        const ticker = parts.slice(1).join(".").toUpperCase();
+        if (market === "HK") {
+          const padded = ticker.padStart(4, "0");
+          return `${padded}.HK`;
+        }
+        return ticker;
+      }
+
+      function buildExternalChartUrl(symbol) {
+        const ticker = symbolToYahoo(symbol);
+        if (!ticker) return "";
+        return `https://finance.yahoo.com/quote/${encodeURIComponent(ticker)}/chart`;
+      }
+
+      function ensureChartSection() {
+        const existing = document.getElementById("chart-panels");
+        if (existing) {
+          return existing;
+        }
+        const grid = document.querySelector(".result-grid");
+        const anchor = document.getElementById("watchlist-candidates")?.closest(".result-card");
+        const article = document.createElement("article");
+        article.className = "result-card full";
+        article.innerHTML = `
+          <h3>交易曲线与买卖点</h3>
+          <div class="chart-stack" id="chart-panels">
+            <div class="chart-empty">
+              等待组合与行情刷新后，这里会优先展示当前收益最高的几只股票，并在曲线上标出买入点和卖出点。
+            </div>
+          </div>
+        `;
+        if (anchor && anchor.parentNode === grid) {
+          grid.insertBefore(article, anchor);
+        } else {
+          grid.appendChild(article);
+        }
+        return article.querySelector("#chart-panels");
+      }
+
+      function makeSectionCollapsible(targetId, title) {
+        const target = document.getElementById(targetId);
+        if (!target) return;
+        const card = target.closest(".result-card");
+        if (!card || card.dataset.collapsibleReady === "true") {
+          return;
+        }
+        const details = document.createElement("details");
+        details.className = "collapsible-card";
+        const summary = document.createElement("summary");
+        summary.textContent = title;
+        if (targetId === "live-feed") {
+          const filters = card.querySelector(".live-stream-filters");
+          if (filters) {
+            summary.appendChild(filters);
+          }
+        }
+        const body = document.createElement("div");
+        body.className = "collapsible-body";
+
+        while (card.firstChild) {
+          const child = card.firstChild;
+          card.removeChild(child);
+          if (child.nodeType === Node.ELEMENT_NODE && child.tagName === "H3") {
+            continue;
+          }
+          body.appendChild(child);
+        }
+
+        details.appendChild(summary);
+        details.appendChild(body);
+        card.appendChild(details);
+        details.open = restoreCollapsibleState(targetId);
+        details.addEventListener("toggle", () => {
+          persistCollapsibleState(targetId, details.open);
+        });
+        card.dataset.collapsibleReady = "true";
+      }
+
+      function initializeDashboardStructure() {
+        ensureChartSection();
+        makeSectionCollapsible("watchlist-candidates", "观察列表候选");
+        makeSectionCollapsible("live-feed", "最近分析与订单");
+        makeSectionCollapsible("intel-items", "抓取明细");
+        makeSectionCollapsible("raw-json", "原始结果 JSON");
+        initializeLiveStreamFilters();
+      }
+
+      function currentLlmMode() {
+        return llmModeEl.value || demoConfig?.llm_mode || "primary";
+      }
+
+      function ownerHeaders(includeJson = false) {
+        const headers = {};
+        const token = ownerTokenEl.value.trim();
+        if (token) {
+          headers["X-HFQT-Owner-Token"] = token;
+        }
+        if (includeJson) {
+          headers["Content-Type"] = "application/json";
+        }
+        return headers;
+      }
+
+      function initializeLiveStreamFilters() {
+        const filterButtons = document.querySelectorAll(".live-stream-filters .chip");
+        if (!filterButtons.length) return;
+        const saved = storageGet(STORAGE_KEYS.liveStreamFilter, "all");
+        filterButtons.forEach((button) => {
+          const key = button.dataset.filter;
+          const isActive = key === saved;
+          button.setAttribute("aria-pressed", isActive ? "true" : "false");
+          if (isActive) {
+            button.classList.add("is-active");
+          } else {
+            button.classList.remove("is-active");
+          }
+          button.addEventListener("click", () => {
+            const selected = button.dataset.filter || "all";
+            storageSet(STORAGE_KEYS.liveStreamFilter, selected);
+            document.querySelectorAll(".live-stream-filters .chip").forEach((item) => {
+              item.setAttribute("aria-pressed", item.dataset.filter === selected ? "true" : "false");
+              item.classList.toggle("is-active", item.dataset.filter === selected);
+            });
+            const cached = storageGet(STORAGE_KEYS.liveSnapshot, null);
+            if (cached?.snapshot) {
+              renderFeed(cached.snapshot);
+            }
+          });
+        });
+      }
+
+      function renderOwnerControl(status) {
+        ownerControl = status || null;
+        if (!ownerControl?.enabled) {
+          ownerStatusTextEl.textContent = "系统权限未启用。建议你开启 owner token，这样写操作和交易锁都由你控制。";
+          ownerLockButton.disabled = true;
+          ownerUnlockButton.disabled = true;
+          return;
+        }
+
+        ownerLockButton.disabled = false;
+        ownerUnlockButton.disabled = false;
+        ownerStatusTextEl.textContent = ownerControl.trading_locked
+          ? `系统权限已启用，当前交易已锁定。${ownerControl.note || ""}`.trim()
+          : `系统权限已启用，当前交易开放。${ownerControl.note || ""}`.trim();
+      }
+
+      function renderConfigInput(item, draftValue) {
+        const value = draftValue !== undefined ? draftValue : item.value;
+        if (item.input_type === "checkbox") {
+          const checked = String(value).toLowerCase() === "true" ? " checked" : "";
+          return `<label class="toggle-row"><span>${escapeHtml(item.label)}</span><input data-config-key="${escapeHtml(item.key)}" data-config-type="checkbox" type="checkbox"${checked} /></label>`;
+        }
+        if (item.input_type === "select" && Array.isArray(item.options) && item.options.length) {
+          const options = item.options
+            .map((option) => `<option value="${escapeHtml(option)}"${String(value) === String(option) ? " selected" : ""}>${escapeHtml(option)}</option>`)
+            .join("");
+          return `<select data-config-key="${escapeHtml(item.key)}" data-config-type="select">${options}</select>`;
+        }
+        const inputType = item.input_type === "number" ? "number" : item.input_type === "password" ? "password" : "text";
+        const placeholder = item.secret && item.configured ? "已配置，界面不回显旧值；如需修改请重新填写" : "";
+        return `<input data-config-key="${escapeHtml(item.key)}" data-config-type="${escapeHtml(item.input_type)}" type="${inputType}" value="${escapeHtml(value || "")}" placeholder="${escapeHtml(placeholder)}" />`;
+      }
+
+      function renderConfigCatalog(catalog) {
+        configCatalog = catalog || { groups: [] };
+        const draft = getConfigDraft();
+        const query = (configSearchEl?.value || "").trim().toLowerCase();
+        const groups = Array.isArray(configCatalog.groups) ? configCatalog.groups : [];
+        if (!groups.length) {
+          configGroupsEl.innerHTML = `
+            <div class="list-item">
+              <strong>暂无配置目录</strong>
+              <span>当前没有拿到参数定义。</span>
+            </div>
+          `;
+          return;
+        }
+
+        const renderedGroups = groups
+          .map((group) => {
+            const filteredItems = (group.items || []).filter((item) => {
+              if (!query) return true;
+              const haystack = [
+                item.key,
+                item.label,
+                item.description,
+                item.how_to,
+                Array.isArray(item.options) ? item.options.join(" ") : "",
+              ]
+                .join(" ")
+                .toLowerCase();
+              return haystack.includes(query);
+            });
+            if (!filteredItems.length) {
+              return "";
+            }
+            const open = query || restoreCollapsibleState(`config:${group.id}`) ? " open" : "";
+            const items = filteredItems
+              .map((item) => {
+                const configured = item.secret
+                  ? `<span class="secret-badge">${item.configured ? "已配置" : "未配置"}</span>`
+                  : "";
+                return `
+                  <div class="config-item">
+                    <div class="config-item-header">
+                      <span class="config-item-title">${escapeHtml(item.label || item.key)}</span>
+                      <span class="config-key">${escapeHtml(item.key)}</span>
+                    </div>
+                    <div class="config-help">
+                      <span>${escapeHtml(item.description || "")}</span>
+                      <span>怎么配：${escapeHtml(item.how_to || "修改后写入 .env 并重启。")}</span>
+                      ${configured}
+                    </div>
+                    ${renderConfigInput(item, draft[item.key])}
+                  </div>
+                `;
+              })
+              .join("");
+            return `
+              <details class="config-group" data-config-group="${escapeHtml(group.id)}"${open}>
+                <summary>
+                  <span>${escapeHtml(group.title || group.id)}</span>
+                  <span class="config-summary-meta">${filteredItems.length} 项</span>
+                </summary>
+                <p class="config-group-desc">${escapeHtml(group.description || "")}</p>
+                <div class="config-item-list">${items}</div>
+              </details>
+            `;
+          })
+          .join("");
+        configGroupsEl.innerHTML = renderedGroups || `
+          <div class="list-item">
+            <strong>没有匹配的配置项</strong>
+            <span>换个关键词试试，或者清空搜索后查看全部分组。</span>
+          </div>
+        `;
+
+        configGroupsEl.querySelectorAll("[data-config-group]").forEach((node) => {
+          node.addEventListener("toggle", () => {
+            persistCollapsibleState(`config:${node.dataset.configGroup}`, node.open);
+          });
+        });
+
+        configGroupsEl.querySelectorAll("[data-config-key]").forEach((input) => {
+          const eventName = input.type === "checkbox" || input.tagName === "SELECT" ? "change" : "input";
+          input.addEventListener(eventName, () => {
+            setConfigDraft(collectConfigDraftFromDom());
+          });
+        });
+
+        generateConfigDraft(false);
+      }
+
+      function collectConfigDraftFromDom() {
+        const draft = {};
+        configGroupsEl.querySelectorAll("[data-config-key]").forEach((input) => {
+          const key = input.dataset.configKey;
+          if (!key) return;
+          if (input.dataset.configType === "checkbox") {
+            draft[key] = Boolean(input.checked);
+          } else {
+            draft[key] = input.value ?? "";
+          }
+        });
+        return draft;
+      }
+
+      function buildConfigDraftText() {
+        if (!configCatalog?.groups?.length) return "";
+        const draft = collectConfigDraftFromDom();
+        const lines = [];
+        configCatalog.groups.forEach((group) => {
+          lines.push(`# ${group.title}`);
+          (group.items || []).forEach((item) => {
+            const draftValue = draft[item.key];
+            const resolvedValue = draftValue !== undefined ? draftValue : item.value;
+            if (item.secret && (!resolvedValue || String(resolvedValue).trim() === "")) {
+              if (item.configured) {
+                lines.push(`# ${item.key}=<已配置，界面不回显旧值；如需修改请手动填写>`);
+              } else {
+                lines.push(`${item.key}=`);
+              }
+              return;
+            }
+            const valueText = item.input_type === "checkbox"
+              ? (resolvedValue ? "true" : "false")
+              : String(resolvedValue ?? "");
+            lines.push(`${item.key}=${valueText}`);
+          });
+          lines.push("");
+        });
+        return lines.join("\n").trim();
+      }
+
+      function generateConfigDraft(updateStatus = true) {
+        const text = buildConfigDraftText();
+        configOutputEl.value = text || "当前没有可导出的配置草稿。";
+        setConfigDraft(collectConfigDraftFromDom());
+        if (updateStatus) {
+          setStatus("已生成 .env 草稿；确认后复制到本地 .env / .env.usmart.example。");
+        }
+      }
+
+      function setTone(target, value) {
+        target.classList.remove("tone-positive", "tone-negative", "tone-flat");
+        if (typeof value !== "number" || !Number.isFinite(value) || value === 0) {
+          target.classList.add("tone-flat");
+          return;
+        }
+        target.classList.add(value > 0 ? "tone-positive" : "tone-negative");
+      }
+
+      function renderPortfolioMetrics(portfolio) {
+        const metricsEl = document.getElementById("portfolio-metrics");
+        if (!portfolio) {
+          metricsEl.innerHTML = `
+            <div class="submetric">
+              <span>成本基准</span>
+              <strong>-</strong>
+            </div>
+            <div class="submetric">
+              <span>市值敞口</span>
+              <strong>-</strong>
+            </div>
+            <div class="submetric">
+              <span>成交笔数</span>
+              <strong>-</strong>
+            </div>
+            <div class="submetric">
+              <span>盈利 / 亏损持仓</span>
+              <strong>-</strong>
+            </div>
+          `;
+          return;
+        }
+
+        metricsEl.innerHTML = `
+          <div class="submetric">
+            <span>成本基准</span>
+            <strong>${formatNumber(portfolio.cost_basis)}</strong>
+          </div>
+          <div class="submetric">
+            <span>市值敞口</span>
+            <strong>${formatNumber(portfolio.gross_market_value)}</strong>
+          </div>
+          <div class="submetric">
+            <span>成交笔数</span>
+            <strong>${portfolio.filled_orders || 0}</strong>
+          </div>
+          <div class="submetric">
+            <span>盈利 / 亏损持仓</span>
+            <strong>${portfolio.winning_positions || 0} / ${portfolio.losing_positions || 0}</strong>
+          </div>
+        `;
+      }
+
+      function applyPortfolioSummary(portfolio) {
+        const totalPnlEl = document.getElementById("portfolio-total-pnl");
+        totalPnlEl.textContent = portfolio ? formatNumber(portfolio.total_pnl) : "-";
+        setTone(totalPnlEl, portfolio?.total_pnl);
+
+        document.getElementById("portfolio-breakdown").textContent = portfolio
+          ? `已实现 ${formatNumber(portfolio.realized_pnl)} | 未实现 ${formatNumber(portfolio.unrealized_pnl)} | 成交 ${portfolio.filled_orders || 0}`
+          : "等待组合收益刷新。";
+        document.getElementById("portfolio-return").textContent = portfolio
+          ? `收益率 ${(Number(portfolio.return_pct || 0) * 100).toFixed(2)}%`
+          : "收益率 -";
+        document.getElementById("portfolio-exposure").textContent = portfolio
+          ? `净敞口 ${formatNumber(portfolio.net_market_value)} | 成本 ${formatNumber(portfolio.cost_basis)}`
+          : "Exposure: -";
+        renderPortfolioMetrics(portfolio);
+      }
+
+      function setLiveCards(selected, candidates, shortlist, portfolio, latestOrder, liveMeta = {}) {
+        const snapshot = liveMeta.snapshot || {};
+        const topCandidates = ((shortlist && shortlist.length) ? shortlist : (candidates || [])).slice(0, 3);
+        const topCandidateText = topCandidates.length
+          ? topCandidates
+              .map((candidate) => {
+                const risk = candidate.risk_status ? `/${candidate.risk_status}` : "";
+                return `${candidate.symbol} ${candidate.action}${risk} x${formatNumber(Number(candidate.quantity ?? 0), 1)} ${formatNumber(Number(candidate.confidence ?? 0))}`;
+              })
+              .join(" · ")
+          : "当前没有可用候选。";
+
+        document.getElementById("intent-action").textContent =
+          topCandidates.length
+            ? `${topCandidates[0].symbol} · ${topCandidates[0].action} · Top ${topCandidates.length}`
+            : selected
+              ? `${selected.symbol} · ${selected.action}`
+              : "-";
+        document.getElementById("intent-confidence").textContent =
+          selected
+            ? `Confidence ${formatNumber(selected.confidence)} | Score ${formatNumber(selected.alpha_score)} | Qty ${formatNumber(selected.quantity, 1)} | Regime ${selected.regime || "-"} | 更新 ${formatClock(snapshot.ts)}`
+            : "Confidence: -";
+        document.getElementById("intent-candidates").textContent = topCandidateText;
+        document.getElementById("intent-rationale").textContent =
+          selected?.rationale || "等待实时分析结果。";
+
+        document.getElementById("risk-status").textContent = selected?.risk_status || "-";
+        document.getElementById("risk-threshold").textContent =
+          selected ? `Threshold ${formatNumber(selected.risk_threshold)} | Ranking ${formatNumber(selected.ranking_score)} | Notional ${formatNumber(selected.estimated_notional)}` : "Threshold: -";
+        document.getElementById("risk-reasons").textContent =
+          selected
+            ? `Bucket ${selected.candidate_bucket || "-"} | Signal ${selected.risk_status || "-"} | Execution ${selected.execution_status || "-"} | Confirm ${formatNumber(selected.price_confirmation)} | Exec ${formatNumber(selected.execution_quality)} | Review ${selected.review_status || "-"} | RiskAgent ${selected.risk_agent_status || "-"}${selected.risk_agent_model ? `/${selected.risk_agent_model}` : ""}`
+            : "等待风控结果。";
+
+        document.getElementById("order-status").textContent =
+          latestOrder ? `${latestOrder.symbol} · ${latestOrder.status}` : "NO ORDER";
+        document.getElementById("order-note").textContent =
+          latestOrder
+            ? `${latestOrder.side} ${formatNumber(latestOrder.quantity, 1)} @ ${formatNumber(latestOrder.avg_fill_price ?? latestOrder.price)} | ${formatClock(latestOrder.ts || latestOrder.updated_at || latestOrder.created_at)}`
+            : "当前暂无订单。";
+
+        document.getElementById("provider-name").textContent =
+          analysisModeEl.value === "llm" ? (demoConfig?.llm_provider || "llm") : "mock";
+        document.getElementById("provider-model").textContent =
+          analysisModeEl.value === "llm"
+            ? `分析 ${selected?.model || demoConfig?.agent_stack?.analysis?.model || demoConfig?.llm_model || "模型未配置"} / ${currentLlmMode()}`
+            : "Deterministic Factor Pipeline";
+        document.getElementById("provider-agents").textContent =
+          analysisModeEl.value === "llm"
+            ? `抓取 ${demoConfig?.agent_stack?.intel?.model || "未配置"} | 复核 ${demoConfig?.agent_stack?.review?.model || "未配置"} | 风控 ${demoConfig?.agent_stack?.risk?.model || "未配置"}`
+            : `抓取 ${demoConfig?.agent_stack?.intel?.model || "未配置"} | 复核 ${demoConfig?.agent_stack?.review?.model || "未配置"} | 风控 ${demoConfig?.agent_stack?.risk?.model || "未配置"}`;
+
+        applyPortfolioSummary(portfolio);
+
+        document.getElementById("live-state").textContent =
+          liveMeta.stateLabel || (autoRefreshEl.checked ? "AUTO ON" : "MANUAL");
+        document.getElementById("live-meta").textContent =
+          `Broker ${brokerEl.value} | 刷新于 ${liveMeta.refreshedAt || "未知"} | ${liveMeta.health || "health unknown"}${liveMeta.note ? ` | ${liveMeta.note}` : ""}`;
+      }
+
+      function renderIntelItems(snapshot) {
+        const container = document.getElementById("intel-items");
+        if (!container) return;
+        const recentEvents = snapshot.recent_events || [];
+        const blocks = [];
+
+        const sourcePriority = {
+          btc_etf_flow: 10,
+          macro_event: 9,
+          macro_calendar: 8,
+          macro_rss: 7,
+          whale_alert: 8,
+          x_monitor: 7,
+          x_link: 7,
+          xreach: 6,
+          financial_datasets: 6,
+          alpha_vantage_news: 6,
+          yfinance_news: 5,
+          google_news: 4,
+          etf_news: 5,
+          announcement: 4,
+        };
+
+        const sourceLabelMap = {
+          btc_etf_flow: "ETF 资金流",
+          macro_event: "宏观事件",
+          macro_rss: "宏观 RSS",
+          macro_calendar: "宏观日历",
+          whale_alert: "Whale Alert",
+          x_link: "指定 X 链接",
+          x_monitor: "指定 X 账号",
+          financial_datasets: "Financial Datasets",
+          alpha_vantage_news: "Alpha Vantage",
+          yfinance_news: "Yahoo 财经",
+          google_news: "谷歌新闻",
+          xreach: "X 舆情",
+          etf_news: "ETF 新闻",
+          announcement: "公告",
+        };
+
+        function parsePublishedAt(value) {
+          if (!value) return null;
+          const d = new Date(value);
+          return Number.isNaN(d.getTime()) ? null : d;
+        }
+
+        function compareItems(a, b) {
+          const ta = parsePublishedAt(a.published_at);
+          const tb = parsePublishedAt(b.published_at);
+          if (ta && tb && ta.getTime() !== tb.getTime()) {
+            return tb.getTime() - ta.getTime();
+          }
+          const sa = Number(a.score ?? 0);
+          const sb = Number(b.score ?? 0);
+          if (sa !== sb) {
+            return sb - sa;
+          }
+          return 0;
+        }
+
+        // 只保留每个 symbol + headline 的最新一轮事件，避免历史轮次重复展示
+        const seenEventKeys = new Set();
+
+        recentEvents.slice(0, 200).forEach((event) => {
+          const symbol = event.symbol || "-";
+          const headline = event.headline || "无标题";
+          const eventKey = `${symbol}::${headline}`;
+          if (seenEventKeys.has(eventKey)) {
+            return;
+          }
+          seenEventKeys.add(eventKey);
+          const meta = event.metadata || {};
+          const items = meta.items || [];
+          const sources = meta.sources || {};
+          const sourceLine = Object.entries(sources)
+            .map(([key, value]) => `${key}:${value}`)
+            .join(" · ");
+
+          const grouped = items.reduce((acc, item) => {
+            const key = item.source || "source";
+            if (!acc[key]) acc[key] = [];
+            acc[key].push(item);
+            return acc;
+          }, {});
+
+          const groupedEntries = Object.entries(grouped).sort(([sourceKeyA, groupA], [sourceKeyB, groupB]) => {
+            const pa = sourcePriority[sourceKeyA] ?? 0;
+            const pb = sourcePriority[sourceKeyB] ?? 0;
+            if (pa !== pb) return pb - pa;
+            const bestA = [...groupA].sort(compareItems)[0];
+            const bestB = [...groupB].sort(compareItems)[0];
+            if (bestA && bestB) {
+              return compareItems(bestA, bestB);
+            }
+            return 0;
+          });
+
+          const groupBlocks = groupedEntries.map(([sourceKey, groupItems]) => {
+            const sorted = groupItems.slice().sort(compareItems);
+            const seenKeys = new Set();
+            const rows = [];
+            for (const item of sorted) {
+              const title = item.title || "无标题";
+              const linkUrl =
+                item.url ||
+                (item.raw && (item.raw.link || item.raw.canonicalUrl || item.raw.url)) ||
+                `https://www.google.com/search?q=${encodeURIComponent(title)}`;
+              const dedupKey = `${sourceKey}::${title.trim()}::${linkUrl}`;
+              if (seenKeys.has(dedupKey)) {
+                continue;
+              }
+              seenKeys.add(dedupKey);
+              const when = item.published_at ? ` · ${escapeHtml(formatClock(item.published_at))}` : "";
+              rows.push(`
+                <div class="list-item">
+                  <strong>${escapeHtml(title)}</strong>
+                  <span><a class="news-link" href="${escapeHtml(linkUrl)}" target="_blank" rel="noreferrer noopener">查看链接</a>${when}</span>
+                </div>
+              `);
+              if (rows.length >= 100) {
+                break;
+              }
+            }
+            return `
+              <div class="list-item">
+                <strong>${escapeHtml(sourceLabelMap[sourceKey] || sourceKey)}</strong>
+                ${rows.length ? rows.join("") : "<span>暂无条目。</span>"}
+              </div>
+            `;
+          });
+
+          blocks.push(`
+            <div class="list-item">
+              <strong>${escapeHtml(symbol)} · ${escapeHtml(headline)}</strong>
+              <span>${escapeHtml(sourceLine || "暂无来源统计")}</span>
+              ${groupBlocks.length ? groupBlocks.join("") : "<span>暂无抓取条目。</span>"}
+            </div>
+          `);
+        });
+
+        if (!blocks.length) {
+          blocks.push(`
+            <div class="list-item">
+              <strong>暂无抓取明细</strong>
+              <span>完成一次抓取后，这里会列出抓到的内容与来源。</span>
+            </div>
+          `);
+        }
+
+        container.innerHTML = blocks.join("");
+      }
+
+      function renderFeed(snapshot) {
+        const feedEl = document.getElementById("live-feed");
+        const selected = snapshot.scan?.selected;
+        const recentOrders = snapshot.recent_orders || [];
+        const recentIntents = snapshot.recent_intents || [];
+        const shortlist = snapshot.scan?.shortlist || [];
+        const selectedFilter = storageGet(STORAGE_KEYS.liveStreamFilter, "all");
+        const blocks = [];
+
+        if (selectedFilter === "all") {
+          shortlist.slice(0, 3).forEach((candidate, index) => {
+            blocks.push(`
+              <div class="list-item">
+                <strong>候选 ${index + 1}：${candidate.symbol} · ${candidate.action}</strong>
+                <span>Confidence ${formatNumber(candidate.confidence)} | Alpha ${formatNumber(candidate.alpha_score)} | Ranking ${formatNumber(candidate.ranking_score)}</span>
+                <span>Qty ${formatNumber(candidate.quantity, 1)} | Notional ${formatNumber(candidate.estimated_notional)} | Signal ${candidate.risk_status || "-"} | Execution ${candidate.execution_status || "-"} | Confirm ${formatNumber(candidate.price_confirmation)} | Exec ${formatNumber(candidate.execution_quality)}</span>
+                <span>${candidate.headline || "无标题"}</span>
+              </div>
+            `);
+          });
+
+          if (selected && !shortlist.length) {
+            blocks.push(`
+              <div class="list-item">
+                <strong>当前候选：${selected.symbol} · ${selected.action}</strong>
+                <span>置信度 ${formatNumber(selected.confidence)}，alpha ${formatNumber(selected.alpha_score)}，状态 ${selected.risk_status}</span>
+                <span>模型 ${(selected.model_profile || "-").toUpperCase()} · ${selected.model || "未配置"}</span>
+                <span>${selected.headline || "无标题"}</span>
+              </div>
+            `);
+          }
+        }
+
+        if (selectedFilter === "all" || selectedFilter === "orders") {
+          recentOrders.slice(0, 4).forEach((order) => {
+            blocks.push(`
+              <div class="list-item">
+                <strong>订单：${order.symbol} · ${order.status}</strong>
+                <span>${order.side} ${formatNumber(order.filled_qty || order.quantity, 1)} 股，价格 ${formatNumber(order.avg_fill_price ?? order.price)}</span>
+                <span>${order.message || "无附加说明"}</span>
+              </div>
+            `);
+          });
+        }
+
+        if (selectedFilter === "all" || selectedFilter === "intents") {
+          recentIntents.slice(0, 3).forEach((intent) => {
+            blocks.push(`
+              <div class="list-item">
+                <strong>最近意图：${intent.symbol} · ${intent.action}</strong>
+                <span>Confidence ${formatNumber(intent.confidence)} | Score ${formatNumber(intent.score)}</span>
+                <span>${intent.rationale || "无解释"}</span>
+              </div>
+            `);
+          });
+        }
+
+        if (!blocks.length) {
+          blocks.push(`
+            <div class="list-item">
+              <strong>暂无实时数据</strong>
+              <span>开启自动刷新后，这里会显示最近分析与订单状态。</span>
+            </div>
+          `);
+        }
+
+        feedEl.innerHTML = blocks.join("");
+      }
+
+      function renderTickerBar(snapshot) {
+        if (!tickerTrackEl) return;
+        const watchlistSymbols = (watchlistEl.value || "")
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+        const positions = snapshot.portfolio?.positions || [];
+        const candidates = snapshot.scan?.candidates || [];
+        const shortlist = snapshot.scan?.shortlist || [];
+        const selected = snapshot.scan?.selected ? [snapshot.scan.selected] : [];
+        const latestCandidates = [...shortlist, ...candidates, ...selected];
+
+        const fallbackItems = positions.length
+          ? positions
+          : latestCandidates.map((item) => ({ symbol: item.symbol, last_price: item.last_price, avg_cost: item.avg_cost }));
+
+        const dataMap = new Map();
+        positions.forEach((pos) => {
+          if (!pos?.symbol) return;
+          dataMap.set(pos.symbol, pos);
+        });
+        latestCandidates.forEach((item) => {
+          if (!item?.symbol || dataMap.has(item.symbol)) return;
+          dataMap.set(item.symbol, item);
+        });
+
+        const symbolsToShow = watchlistSymbols.length
+          ? watchlistSymbols
+          : Array.from(dataMap.keys());
+
+        const items = symbolsToShow.length
+          ? symbolsToShow.map((symbol) => ({ symbol, data: dataMap.get(symbol) }))
+          : fallbackItems.map((item) => ({ symbol: item.symbol, data: item }));
+
+        if (!items.length) {
+          tickerTrackEl.innerHTML = `<div class="ticker-item"><strong>暂无行情</strong><span>等待 watchlist 刷新</span></div>`;
+          return;
+        }
+
+        tickerTrackEl.innerHTML = items
+          .map(({ symbol, data }) => {
+            const price = Number(data?.last_price ?? data?.price ?? data?.avg_cost ?? 0);
+            const reference = Number(data?.avg_cost ?? data?.last_price ?? data?.price ?? 0);
+            const change = formatTickChange(price, reference);
+            return `
+              <div class="ticker-item">
+                <strong>${escapeHtml(symbol)}</strong>
+                <span>${formatNumber(price)}</span>
+                <span class="ticker-change ${change.cls}">${change.text}</span>
+              </div>
+            `;
+          })
+          .join("");
+      }
+
+      function renderCandidates(snapshot) {
+        const candidatesEl = document.getElementById("watchlist-candidates");
+        const candidates = snapshot.scan?.candidates || [];
+        const snapshotTime = formatClock(snapshot.ts);
+        if (!candidates.length) {
+          candidatesEl.innerHTML = `
+            <div class="list-item">
+              <strong>暂无候选</strong>
+              <span>当前没有拿到观察列表结果。</span>
+            </div>
+          `;
+          return;
+        }
+
+        candidatesEl.innerHTML = candidates
+          .map((candidate) => {
+            const candidateClass = isBullishConfirmed(candidate) ? "list-item bullish-setup" : "list-item";
+            const headlineLine = headlineLinkHtml(
+              candidate.headline,
+              candidate.primary_link,
+              candidate.primary_published_at,
+              candidate.primary_age_minutes
+            );
+            return `
+              <div class="${candidateClass}">
+                <strong>${candidate.symbol} · ${candidate.action} · ${candidate.risk_status}</strong>
+                <span>更新时间 ${snapshotTime}</span>
+                <span>Confidence ${formatNumber(candidate.confidence)} | Alpha ${formatNumber(candidate.alpha_score)} | Ranking ${formatNumber(candidate.ranking_score)}</span>
+                <span>Qty ${formatNumber(candidate.quantity, 1)} | Notional ${formatNumber(candidate.estimated_notional)} | Bucket ${candidate.candidate_bucket || "-"} | Signal ${candidate.risk_status || "-"} | Execution ${candidate.execution_status || "-"}</span>
+                <span>Regime ${candidate.regime || "-"} | Price ${formatNumber(candidate.last_price)} | Source ${formatNumber(candidate.source_quality)}</span>
+                <span>Confirm ${formatNumber(candidate.price_confirmation)} | Exec ${formatNumber(candidate.execution_quality)} | Align ${formatNumber(candidate.alignment)}</span>
+                <span>${(candidate.risk_reasons || [candidate.rationale || ""]).slice(0, 1).join("")}</span>
+                <span>Review ${candidate.review_status || "-"} | ${candidate.review_model || "未配置"}</span>
+                <span>Model ${(candidate.model_profile || "-").toUpperCase()} | ${candidate.model || "未配置"}</span>
+                ${headlineLine || "<span>消息：无标题</span>"}
+              </div>
+            `;
+          })
+          .join("");
+      }
+
+      function formatPct(value) {
+        if (typeof value !== "number" || !Number.isFinite(value)) return "-";
+        return `${value >= 0 ? "+" : ""}${(value * 100).toFixed(2)}%`;
+      }
+
+      function formatAgeMinutes(value) {
+        if (value === undefined || value === null || !Number.isFinite(Number(value))) return "";
+        const minutes = Math.max(0, Number(value));
+        if (minutes < 1) return "刚刚";
+        if (minutes < 60) return `${Math.round(minutes)} 分钟前`;
+        if (minutes < 1440) return `${Math.round(minutes / 60)} 小时前`;
+        return `${Math.round(minutes / 1440)} 天前`;
+      }
+
+      function parsePublishedAt(value) {
+        if (!value) return null;
+        const parsed = new Date(value);
+        if (!Number.isNaN(parsed.getTime())) return parsed;
+        return null;
+      }
+
+      function ageMinutesFromPublishedAt(value) {
+        const parsed = parsePublishedAt(value);
+        if (!parsed) return null;
+        return Math.max(0, (Date.now() - parsed.getTime()) / 60000);
+      }
+
+      function extractPrimaryNewsMeta(event = {}) {
+        const item = event?.metadata?.items?.find?.((candidate) => candidate && typeof candidate === "object") || null;
+        const publishedAt = item?.published_at || null;
+        return {
+          url: item?.url || null,
+          publishedAt,
+          ageMinutes: ageMinutesFromPublishedAt(publishedAt),
+        };
+      }
+
+      function summarizeTrend(source = {}) {
+        const parts = [];
+        if (source.momentum_15m_pct !== undefined && source.momentum_15m_pct !== null) {
+          parts.push(`15m ${formatPct(Number(source.momentum_15m_pct))}`);
+        }
+        if (source.momentum_30m_pct !== undefined && source.momentum_30m_pct !== null) {
+          parts.push(`30m ${formatPct(Number(source.momentum_30m_pct))}`);
+        }
+        if (source.intraday_range_pct !== undefined && source.intraday_range_pct !== null) {
+          parts.push(`波动 ${formatPct(Number(source.intraday_range_pct))}`);
+        }
+        if (source.volume_ratio_5m !== undefined && source.volume_ratio_5m !== null) {
+          parts.push(`量比 ${formatNumber(Number(source.volume_ratio_5m))}`);
+        }
+        return parts.join(" | ");
+      }
+
+      function summarizeCandidateReason(candidate = {}) {
+        const reasons = [];
+        if (candidate.rationale) reasons.push(`判断：${candidate.rationale}`);
+        const trend = summarizeTrend(candidate);
+        if (trend) reasons.push(`曲线：${trend}`);
+        const factors = [];
+        if (candidate.news_count !== undefined && candidate.news_count !== null) factors.push(`新闻 ${candidate.news_count}`);
+        if (candidate.social_count !== undefined && candidate.social_count !== null) factors.push(`舆情 ${candidate.social_count}`);
+        if (candidate.source_quality !== undefined && candidate.source_quality !== null) factors.push(`源质量 ${formatNumber(Number(candidate.source_quality))}`);
+        if (candidate.price_confirmation !== undefined && candidate.price_confirmation !== null) factors.push(`确认 ${formatNumber(Number(candidate.price_confirmation))}`);
+        if (candidate.execution_quality !== undefined && candidate.execution_quality !== null) factors.push(`执行 ${formatNumber(Number(candidate.execution_quality))}`);
+        if (factors.length) reasons.push(`因子：${factors.join(" | ")}`);
+        const limits = (candidate.execution_reasons || candidate.risk_reasons || []).filter(Boolean);
+        if (limits.length) reasons.push(`限制：${limits.slice(0, 2).join("；")}`);
+        return reasons;
+      }
+
+      function summarizeEventReason(event = {}, intent = null) {
+        const reasons = [];
+        if (intent?.rationale) reasons.push(`判断：${intent.rationale}`);
+        const priceAction = event.metadata?.price_action || {};
+        const trend = summarizeTrend({
+          momentum_15m_pct: priceAction.return_15m_pct,
+          momentum_30m_pct: priceAction.return_30m_pct,
+          intraday_range_pct: priceAction.intraday_range_pct_30m,
+          volume_ratio_5m: priceAction.volume_ratio_5m_vs_30m,
+        });
+        if (trend) reasons.push(`曲线：${trend}`);
+        const quality = event.metadata?.source_quality || {};
+        const factors = [];
+        if (quality.news_count !== undefined) factors.push(`新闻 ${quality.news_count}`);
+        if (quality.social_count !== undefined) factors.push(`舆情 ${quality.social_count}`);
+        if (quality.overall_score !== undefined) factors.push(`源质量 ${formatNumber(Number(quality.overall_score))}`);
+        if (factors.length) reasons.push(`因子：${factors.join(" | ")}`);
+        return reasons;
+      }
+
+      function isBullishConfirmed(source = {}) {
+        return (
+          Number(source.alpha_score ?? 0) > 0.08 &&
+          Number(source.source_quality ?? 0) >= 0.55 &&
+          Number(source.price_confirmation ?? 0) >= 0.65 &&
+          Number(source.freshness_score ?? 0) >= 0.65
+        );
+      }
+
+      function headlineLinkHtml(title, url, publishedAt = null, ageMinutes = null) {
+        if (!title) return "";
+        const resolvedAgeMinutes = ageMinutes ?? ageMinutesFromPublishedAt(publishedAt);
+        const freshness = formatAgeMinutes(resolvedAgeMinutes);
+        const freshnessHtml = freshness ? ` <span class="news-meta">${escapeHtml(freshness)}</span>` : "";
+        if (!url) return `<span>消息：${escapeHtml(title)}${freshnessHtml}</span>`;
+        return `<span>消息：<a class="news-link" href="${escapeHtml(url)}" target="_blank" rel="noreferrer noopener">${escapeHtml(title)}</a>${freshnessHtml}</span>`;
+      }
+
+      function buildTriggerSummary(headline, rationale, trend, url = null) {
+        const parts = [];
+        if (headline) parts.push(`消息 ${headline}`);
+        if (rationale) parts.push(`判断 ${rationale}`);
+        if (trend) parts.push(`曲线 ${trend}`);
+        if (!parts.length) return "";
+        const link = url
+          ? ` <a class="news-link" href="${escapeHtml(url)}" target="_blank" rel="noreferrer noopener">查看新闻</a>`
+          : "";
+        return `<span class="trigger-summary">触发摘要：${escapeHtml(parts.join(" | "))}${link}</span>`;
+      }
+
+      function renderFeed(snapshot) {
+        const feedEl = document.getElementById("live-feed");
+        const selected = snapshot.scan?.selected;
+        const recentOrders = snapshot.recent_orders || [];
+        const recentOrderRequests = snapshot.recent_order_requests || [];
+        const recentIntents = snapshot.recent_intents || [];
+        const recentEvents = snapshot.recent_events || [];
+        const shortlist = snapshot.scan?.shortlist || [];
+        const blocks = [];
+
+        const intentsById = Object.fromEntries(recentIntents.map((intent) => [intent.intent_id, intent]));
+        const eventsById = Object.fromEntries(recentEvents.map((event) => [event.event_id, event]));
+        const requestsById = Object.fromEntries(recentOrderRequests.map((request) => [request.request_id, request]));
+
+        shortlist.slice(0, 3).forEach((candidate, index) => {
+          const candidateClass = isBullishConfirmed(candidate) ? "list-item bullish-setup" : "list-item";
+          const reasons = summarizeCandidateReason(candidate)
+            .map((line) => `<span>${escapeHtml(line)}</span>`)
+            .join("");
+          const headlineLine = headlineLinkHtml(
+            candidate.headline,
+            candidate.primary_link,
+            candidate.primary_published_at,
+            candidate.primary_age_minutes
+          );
+          blocks.push(`
+            <div class="${candidateClass}">
+              <strong>候选 ${index + 1}：${escapeHtml(candidate.symbol)} · ${escapeHtml(candidate.action)}</strong>
+              <span>Confidence ${formatNumber(candidate.confidence)} | Alpha ${formatNumber(candidate.alpha_score)} | Ranking ${formatNumber(candidate.ranking_score)}</span>
+              <span>Qty ${formatNumber(candidate.quantity, 1)} | Notional ${formatNumber(candidate.estimated_notional)} | Signal ${escapeHtml(candidate.risk_status || "-")} | Execution ${escapeHtml(candidate.execution_status || "-")} | Bucket ${escapeHtml(candidate.candidate_bucket || "-")}</span>
+              ${headlineLine}
+              ${reasons}
+            </div>
+          `);
+        });
+
+        if (selected && !shortlist.length) {
+          const candidateClass = isBullishConfirmed(selected) ? "list-item bullish-setup" : "list-item";
+          const reasons = summarizeCandidateReason(selected)
+            .map((line) => `<span>${escapeHtml(line)}</span>`)
+            .join("");
+          const headlineLine = headlineLinkHtml(
+            selected.headline,
+            selected.primary_link,
+            selected.primary_published_at,
+            selected.primary_age_minutes
+          );
+          blocks.push(`
+            <div class="${candidateClass}">
+              <strong>当前候选：${escapeHtml(selected.symbol)} · ${escapeHtml(selected.action)}</strong>
+              <span>Confidence ${formatNumber(selected.confidence)} | Alpha ${formatNumber(selected.alpha_score)} | Ranking ${formatNumber(selected.ranking_score)}</span>
+              <span>模型 ${(selected.model_profile || "-").toUpperCase()} | ${escapeHtml(selected.model || "未配置")}</span>
+              ${headlineLine}
+              ${reasons}
+            </div>
+          `);
+        }
+
+        recentOrders.slice(0, 4).forEach((order) => {
+          const request = requestsById[order.request_id];
+          const intent = request ? intentsById[request.intent_id] : null;
+          const event = intent ? eventsById[intent.event_id] : null;
+          const primaryMeta = extractPrimaryNewsMeta(event || {});
+          const trend = summarizeTrend({
+            momentum_15m_pct: event?.metadata?.price_action?.return_15m_pct,
+            momentum_30m_pct: event?.metadata?.price_action?.return_30m_pct,
+            intraday_range_pct: event?.metadata?.price_action?.intraday_range_pct_30m,
+            volume_ratio_5m: event?.metadata?.price_action?.volume_ratio_5m_vs_30m,
+          });
+          const newsUrl = primaryMeta.url;
+          const reasons = summarizeEventReason(event || {}, intent)
+            .map((line) => `<span>${escapeHtml(line)}</span>`)
+            .join("");
+          const headlineLine = headlineLinkHtml(event?.headline, newsUrl, primaryMeta.publishedAt, primaryMeta.ageMinutes);
+          blocks.push(`
+            <div class="list-item">
+              <strong>订单：${escapeHtml(order.symbol)} · ${escapeHtml(order.status)}</strong>
+              <span>更新时间 ${formatClock(order.ts || order.updated_at || order.created_at)}</span>
+              <span>${escapeHtml(order.side)} ${formatNumber(order.filled_qty || order.quantity, 1)} 股，价格 ${formatNumber(order.avg_fill_price ?? order.price)}</span>
+              <span>${escapeHtml(order.message || "无附加说明")}</span>
+              ${buildTriggerSummary(event?.headline, intent?.rationale, trend, newsUrl)}
+              ${headlineLine}
+              ${reasons || `<span>原因：暂未找到对应的意图或新闻事件。</span>`}
+            </div>
+          `);
+        });
+
+        recentIntents.slice(0, 3).forEach((intent) => {
+          const event = eventsById[intent.event_id];
+          const primaryMeta = extractPrimaryNewsMeta(event || {});
+          const reasons = summarizeEventReason(event || {}, intent)
+            .map((line) => `<span>${escapeHtml(line)}</span>`)
+            .join("");
+          const headlineLine = headlineLinkHtml(event?.headline, primaryMeta.url, primaryMeta.publishedAt, primaryMeta.ageMinutes);
+          blocks.push(`
+            <div class="list-item">
+              <strong>最近意图：${escapeHtml(intent.symbol)} · ${escapeHtml(intent.action)}</strong>
+              <span>更新时间 ${formatClock(intent.ts)}</span>
+              <span>Confidence ${formatNumber(intent.confidence)} | Score ${formatNumber(intent.score)}</span>
+              ${headlineLine}
+              ${reasons || `<span>${escapeHtml(intent.rationale || "无解释")}</span>`}
+            </div>
+          `);
+        });
+
+        if (!blocks.length) {
+          blocks.push(`
+            <div class="list-item">
+              <strong>暂无实时数据</strong>
+              <span>开启自动刷新后，这里会显示最近分析、触发原因与订单状态。</span>
+            </div>
+          `);
+        }
+
+        feedEl.innerHTML = blocks.join("");
+      }
+
+      function renderPortfolioPositions(portfolio) {
+        const positionsEl = document.getElementById("portfolio-positions");
+        const positions = portfolio?.positions || [];
+        if (!positions.length) {
+          positionsEl.innerHTML = `
+            <div class="list-item">
+              <strong>暂无持仓</strong>
+              <span>成交后，这里会显示每个标的的仓位与盈亏。</span>
+            </div>
+          `;
+          return;
+        }
+
+        positionsEl.innerHTML = positions
+          .map((position) => {
+            const netQty = Number(position.net_quantity || 0);
+            const isLong = netQty >= 0;
+            const badgeLabel = netQty === 0 ? "FLAT" : isLong ? "多头" : "空头";
+            const pnlValue = Number(position.total_pnl ?? 0);
+            const pnlClass = pnlValue > 0 ? "positive" : pnlValue < 0 ? "negative" : "neutral";
+            const pnlPct = Number(position.return_pct ?? 0);
+            const replayUrl = buildExternalChartUrl(position.symbol);
+            const lastUpdated = formatClock(position.updated_at || position.ts);
+
+            return `
+              <div class="position-card">
+                <div class="position-header">
+                  <div>
+                    <strong>${escapeHtml(position.symbol)}</strong>
+                    <div class="position-subtitle">持仓 ${formatNumber(netQty, 1)} 股 · ${lastUpdated}</div>
+                  </div>
+                  <span class="position-badge ${netQty === 0 ? "" : isLong ? "long" : "short"}">${badgeLabel}</span>
+                </div>
+                <div class="position-metrics">
+                  <div class="position-metric">
+                    <span>入场均价</span>
+                    <strong>${formatNumber(position.avg_cost)}</strong>
+                  </div>
+                  <div class="position-metric">
+                    <span>最新价格</span>
+                    <strong>${formatNumber(position.last_price)}</strong>
+                  </div>
+                  <div class="position-metric">
+                    <span>市值</span>
+                    <strong>${formatNumber(position.market_value)}</strong>
+                  </div>
+                  <div class="position-metric">
+                    <span>未实现盈亏</span>
+                    <strong>${formatSignedNumber(position.unrealized_pnl)}</strong>
+                  </div>
+                </div>
+                <div class="position-footer">
+                  <div class="position-pnl ${pnlClass}">盈亏 ${formatSignedNumber(pnlValue)} (${formatSignedNumber(pnlPct * 100)}%)</div>
+                  <div class="position-actions">
+                    <span class="position-fee">已实现 ${formatSignedNumber(position.realized_pnl)}</span>
+                    ${replayUrl ? `<a class="position-link" href="${replayUrl}" target="_blank" rel="noreferrer noopener">查看复盘</a>` : ""}
+                  </div>
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+      }
+
+      function buildCandlestickSvg(panel) {
+        const bars = panel?.bars || [];
+        if (!bars.length) {
+          return `<div class="chart-empty">暂无可用 K 线数据。</div>`;
+        }
+
+        const width = 920;
+        const height = 280;
+        const padding = { left: 52, right: 18, top: 18, bottom: 28 };
+        const plotWidth = width - padding.left - padding.right;
+        const plotHeight = height - padding.top - padding.bottom;
+        const slot = plotWidth / Math.max(bars.length, 1);
+        const candleWidth = Math.max(3, Math.min(10, slot * 0.64));
+
+        const barTimes = bars.map((bar) => Number(bar.ts || 0));
+        const pricePoints = bars.flatMap((bar) => [Number(bar.low), Number(bar.high)]).filter((value) => Number.isFinite(value));
+        const trades = panel?.trades || [];
+        trades.forEach((trade) => {
+          const tradePrice = Number(trade.price);
+          if (Number.isFinite(tradePrice)) {
+            pricePoints.push(tradePrice);
+          }
+        });
+        const avgCost = Number(panel?.position?.avg_cost);
+        if (Number.isFinite(avgCost) && avgCost > 0) {
+          pricePoints.push(avgCost);
+        }
+        const lastPrice = Number(panel?.position?.last_price ?? bars[bars.length - 1]?.close);
+        if (Number.isFinite(lastPrice)) {
+          pricePoints.push(lastPrice);
+        }
+
+        const priceMin = Math.min(...pricePoints);
+        const priceMax = Math.max(...pricePoints);
+        const pricePad = Math.max((priceMax - priceMin) * 0.08, priceMax * 0.002, 0.05);
+        const floor = priceMin - pricePad;
+        const ceil = priceMax + pricePad;
+        const y = (price) => padding.top + ((ceil - price) / Math.max(ceil - floor, 1e-6)) * plotHeight;
+        const x = (index) => padding.left + index * slot + slot / 2;
+
+        const gridLines = [0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+          const yy = padding.top + ratio * plotHeight;
+          return `<line x1="${padding.left}" y1="${yy.toFixed(2)}" x2="${(width - padding.right).toFixed(2)}" y2="${yy.toFixed(2)}" stroke="rgba(30,29,26,0.08)" stroke-width="1" />`;
+        }).join("");
+
+        const candles = bars.map((bar, index) => {
+          const open = Number(bar.open);
+          const high = Number(bar.high);
+          const low = Number(bar.low);
+          const close = Number(bar.close);
+          const xx = x(index);
+          const yOpen = y(open);
+          const yClose = y(close);
+          const yHigh = y(high);
+          const yLow = y(low);
+          const top = Math.min(yOpen, yClose);
+          const bodyHeight = Math.max(Math.abs(yClose - yOpen), 1.5);
+          const color = close >= open ? "#0e6b50" : "#b95c2e";
+          return `
+            <line x1="${xx.toFixed(2)}" y1="${yHigh.toFixed(2)}" x2="${xx.toFixed(2)}" y2="${yLow.toFixed(2)}" stroke="${color}" stroke-width="1.1" />
+            <rect x="${(xx - candleWidth / 2).toFixed(2)}" y="${top.toFixed(2)}" width="${candleWidth.toFixed(2)}" height="${bodyHeight.toFixed(2)}" fill="${color}" rx="1.6" />
+          `;
+        }).join("");
+
+        const closeLine = bars
+          .map((bar, index) => `${x(index).toFixed(2)},${y(Number(bar.close)).toFixed(2)}`)
+          .join(" ");
+
+        const firstTs = barTimes[0] || 0;
+        const lastTs = barTimes[barTimes.length - 1] || firstTs + 1;
+        const tradeMarkers = trades.map((trade) => {
+          const tradeTs = new Date(trade.ts).getTime() / 1000;
+          const ratio = (tradeTs - firstTs) / Math.max(lastTs - firstTs, 1);
+          const clamped = Math.min(1, Math.max(0, ratio));
+          const xx = padding.left + clamped * plotWidth;
+          const yy = y(Number(trade.price));
+          const tooltip = escapeHtml(
+            [trade.side, formatClock(trade.ts), trade.headline || "", trade.trigger_summary || ""]
+              .filter(Boolean)
+              .join(" | ")
+          );
+          const marker = String(trade.side).toUpperCase() === "BUY"
+            ? `<polygon points="${xx.toFixed(2)},${(yy - 7).toFixed(2)} ${(xx - 6).toFixed(2)},${(yy + 5).toFixed(2)} ${(xx + 6).toFixed(2)},${(yy + 5).toFixed(2)}" fill="#0e6b50" opacity="0.95"><title>${tooltip}</title></polygon>`
+            : `<polygon points="${xx.toFixed(2)},${(yy + 7).toFixed(2)} ${(xx - 6).toFixed(2)},${(yy - 5).toFixed(2)} ${(xx + 6).toFixed(2)},${(yy - 5).toFixed(2)}" fill="#b95c2e" opacity="0.95"><title>${tooltip}</title></polygon>`;
+          if (trade.news_url) {
+            return `<a href="${escapeHtml(trade.news_url)}" target="_blank" rel="noreferrer noopener">${marker}</a>`;
+          }
+          if (String(trade.side).toUpperCase() === "BUY") {
+            return marker;
+          }
+          return marker;
+        }).join("");
+
+        const avgCostLine = Number.isFinite(avgCost) && avgCost > 0
+          ? `
+            <line x1="${padding.left}" y1="${y(avgCost).toFixed(2)}" x2="${(width - padding.right).toFixed(2)}" y2="${y(avgCost).toFixed(2)}" stroke="rgba(30,29,26,0.38)" stroke-width="1" stroke-dasharray="5 5" />
+            <text x="${padding.left + 6}" y="${(y(avgCost) - 6).toFixed(2)}" fill="rgba(30,29,26,0.72)" font-size="11">成本 ${formatNumber(avgCost)}</text>
+          `
+          : "";
+
+        const lastPriceLine = Number.isFinite(lastPrice)
+          ? `
+            <line x1="${padding.left}" y1="${y(lastPrice).toFixed(2)}" x2="${(width - padding.right).toFixed(2)}" y2="${y(lastPrice).toFixed(2)}" stroke="rgba(14,107,80,0.25)" stroke-width="1" stroke-dasharray="3 6" />
+          `
+          : "";
+
+        const leftLabel = `${formatNumber(ceil)}`;
+        const rightLabel = `${formatNumber(floor)}`;
+        const fromTime = formatClock(new Date(firstTs * 1000));
+        const toTime = formatClock(new Date(lastTs * 1000));
+
+        return `
+          <svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(panel.symbol)} kline chart">
+            ${gridLines}
+            ${avgCostLine}
+            ${lastPriceLine}
+            <polyline points="${closeLine}" fill="none" stroke="rgba(30,29,26,0.25)" stroke-width="1.2" />
+            ${candles}
+            ${tradeMarkers}
+            <text x="${padding.left}" y="14" fill="rgba(30,29,26,0.72)" font-size="11">${escapeHtml(leftLabel)}</text>
+            <text x="${padding.left}" y="${(height - 6).toFixed(2)}" fill="rgba(30,29,26,0.72)" font-size="11">${escapeHtml(rightLabel)}</text>
+            <text x="${padding.left}" y="${(height - 6).toFixed(2)}" fill="rgba(30,29,26,0.72)" font-size="11">${escapeHtml(fromTime)}</text>
+            <text x="${(width - padding.right - 36).toFixed(2)}" y="${(height - 6).toFixed(2)}" fill="rgba(30,29,26,0.72)" font-size="11">${escapeHtml(toTime)}</text>
+          </svg>
+        `;
+      }
+
+      function renderChartPanels(chartPayload) {
+        const panelsEl = ensureChartSection();
+        const panels = chartPayload?.panels || [];
+        if (!panels.length) {
+          panelsEl.innerHTML = `
+            <div class="chart-empty">
+              当前还没有足够的持仓或行情数据来绘制曲线，等下一轮刷新后我会自动补上。
+            </div>
+          `;
+          return;
+        }
+
+        panelsEl.innerHTML = panels
+          .map((panel) => {
+            const symbol = escapeHtml(panel.symbol);
+            const position = panel.position || {};
+            const signal = panel.signal || {};
+            const totalPnl = Number(position.total_pnl ?? panel.priority_pnl ?? 0);
+            const pnlClass = totalPnl > 0 ? "tone-positive" : totalPnl < 0 ? "tone-negative" : "tone-flat";
+            const isOpen = chartOpenState.has(panel.symbol) ? " open" : "";
+            const bullishConfirmed = isBullishConfirmed(signal);
+            const tradeSummary = (panel.trades || [])
+              .slice(-4)
+              .map((trade) => `${escapeHtml(trade.side)} @ ${formatNumber(Number(trade.price))} (${formatClock(trade.ts)})`)
+              .join(" · ");
+            const triggerList = (panel.trades || [])
+              .slice(-4)
+              .map((trade) => {
+                const trend = summarizeTrend(trade);
+                const summary = buildTriggerSummary(trade.headline, trade.trigger_summary, trend, trade.news_url);
+                const headlineLine = headlineLinkHtml(trade.headline, trade.news_url, trade.published_at, trade.age_minutes);
+                return `
+                  <div class="chart-trigger-item">
+                    <span><strong>${escapeHtml(trade.side)} ${formatNumber(Number(trade.quantity || 0), 1)} 股</strong> @ ${formatNumber(Number(trade.price))} · ${escapeHtml(formatClock(trade.ts))}</span>
+                    ${headlineLine}
+                    ${summary || `<span>触发摘要：${escapeHtml(trade.trigger_summary || "暂无")}</span>`}
+                  </div>
+                `;
+              })
+              .join("");
+            const signalHeadline = signal.headline
+              ? headlineLinkHtml(signal.headline, signal.primary_link, signal.primary_published_at, signal.primary_age_minutes)
+              : "";
+            const signalTrend = summarizeTrend(signal);
+            const signalSummary = buildTriggerSummary(signal.headline, signal.rationale, signalTrend, signal.primary_link);
+
+            return `
+              <details class="chart-panel" data-symbol="${symbol}"${isOpen}>
+                <summary>
+                  <div class="chart-summary">
+                    <div>
+                      <div class="chart-summary-title">
+                        <strong>${symbol}</strong>
+                        ${buildExternalChartUrl(panel.symbol)
+                          ? `<a class="chart-summary-link" href="${buildExternalChartUrl(panel.symbol)}" target="_blank" rel="noreferrer noopener">外部图表</a>`
+                          : ""}
+                      </div>
+                      <span>净仓 ${formatNumber(Number(position.net_quantity || 0), 1)} 股</span>
+                    </div>
+                    <div>
+                      <strong class="${pnlClass}">${formatNumber(totalPnl)}</strong>
+                      <span>总收益 / PnL</span>
+                    </div>
+                    <div>
+                      <strong>${formatNumber(Number(position.last_price ?? 0))}</strong>
+                      <span>现价 ${formatNumber(Number(position.avg_cost ?? 0))} 成本</span>
+                    </div>
+                    <div>
+                      <strong>${escapeHtml(signal.action || "HOLD")}</strong>
+                      <span>置信度 ${formatNumber(Number(signal.confidence ?? 0))}</span>
+                    </div>
+                  </div>
+                </summary>
+                <div class="chart-body">
+                  ${buildCandlestickSvg(panel)}
+                  ${panel.chart_error ? `<div class="chart-empty">该标的无足够分时数据（${escapeHtml(panel.chart_error)}）</div>` : ""}
+                  <div class="chart-meta">
+                    <span class="chart-pill">信号 ${escapeHtml(signal.action || "HOLD")} / alpha ${formatNumber(Number(signal.alpha_score ?? 0))}</span>
+                    <span class="chart-pill">${bullishConfirmed ? "利多新闻 + 曲线确认" : "等待进一步确认"}</span>
+                    <span class="chart-pill">已实现 ${formatNumber(Number(position.realized_pnl ?? 0))}</span>
+                    <span class="chart-pill">未实现 ${formatNumber(Number(position.unrealized_pnl ?? 0))}</span>
+                    <span class="chart-pill">买卖点 ${(panel.trades || []).length ? escapeHtml(tradeSummary) : "暂无成交点"}</span>
+                  </div>
+                  ${signalHeadline ? `<div class="chart-trigger-list"><div class="chart-trigger-item">${signalHeadline}${signalSummary}</div></div>` : ""}
+                  ${(panel.trades || []).length ? `<div class="chart-trigger-list">${triggerList}</div>` : ""}
+                </div>
+              </details>
+            `;
+          })
+          .join("");
+
+        panelsEl.querySelectorAll("details[data-symbol]").forEach((detail) => {
+          detail.addEventListener("toggle", () => {
+            const symbol = detail.dataset.symbol;
+            if (!symbol) return;
+            if (detail.open) {
+              chartOpenState.add(symbol);
+            } else {
+              chartOpenState.delete(symbol);
+            }
+            persistChartOpenState();
+          });
+        });
+      }
+
+      function setRawJson(data, options = {}) {
+        const text = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+        rawJsonEl.textContent = text;
+        if (options.persist !== false) {
+          storageSet(STORAGE_KEYS.rawJson, text);
+        }
+      }
+
+      function restoreCachedRawJson() {
+        const cached = storageGet(STORAGE_KEYS.rawJson, null);
+        if (typeof cached === "string" && cached.trim()) {
+          rawJsonEl.textContent = cached;
+        }
+      }
+
+      function applyLiveSnapshot(snapshot, options = {}) {
+        if (!snapshot) return;
+        const selected = snapshot.scan?.selected || null;
+        const latestOrder = (snapshot.recent_orders || [])[0] || null;
+        const scanError = snapshot.errors?.scan || null;
+        const refreshedAt = options.refreshedAt || new Date().toLocaleTimeString();
+        const scanCache = snapshot.scan?.cache || {};
+        const cacheNote = scanCache.hit
+          ? `scan cache ${formatNumber(Number(scanCache.age_seconds || 0), 0)}s`
+          : "fresh scan";
+
+        setLiveCards(selected, snapshot.scan?.candidates || [], snapshot.scan?.shortlist || [], snapshot.portfolio, latestOrder, {
+          refreshedAt,
+          health: snapshot.health?.connected === false ? "broker offline" : "broker ok",
+          note: options.note || cacheNote,
+          stateLabel: options.stateLabel,
+          snapshot,
+        });
+        renderTickerBar(snapshot);
+        renderCandidates(snapshot);
+        renderPortfolioPositions(snapshot.portfolio);
+        renderChartPanels(snapshot.chart_panels);
+        renderFeed(snapshot);
+        renderIntelItems(snapshot);
+        setRawJson(snapshot, { persist: options.persistRawJson !== false });
+        lastRefreshEl.value = refreshedAt;
+        runtimeNoteEl.textContent = scanError
+          ? `Live ${brokerEl.value} · ${analysisModeEl.value === "llm" ? `LLM/${currentLlmMode()}` : "Mock"} · scan fallback`
+          : `Live ${brokerEl.value} · ${analysisModeEl.value === "llm" ? `LLM/${currentLlmMode()}` : "Mock"}`;
+
+        if (options.persistSnapshot !== false) {
+          storageSet(STORAGE_KEYS.liveSnapshot, {
+            snapshot,
+            cachedAt: new Date().toISOString(),
+          });
+        }
+      }
+
+      function restoreCachedSnapshot() {
+        const cached = storageGet(STORAGE_KEYS.liveSnapshot, null);
+        if (!cached?.snapshot) {
+          return false;
+        }
+        const refreshedAt = cached.cachedAt
+          ? new Date(cached.cachedAt).toLocaleTimeString()
+          : "刚刚";
+        applyLiveSnapshot(cached.snapshot, {
+          refreshedAt,
+          persistSnapshot: false,
+          persistRawJson: false,
+        });
+        setStatus("已恢复上次看板数据，正在后台刷新最新结果...");
+        return true;
+      }
+
+      function fillSample() {
+        if (!demoConfig?.sample_event) return;
+        const sample = demoConfig.sample_event;
+        document.getElementById("symbol").value = sample.symbol;
+        document.getElementById("headline").value = sample.headline;
+        document.getElementById("body").value = sample.body;
+        document.getElementById("sentiment").value = sample.sentiment;
+        document.getElementById("price").value = sample.price;
+        document.getElementById("quantity").value = sample.quantity;
+        document.getElementById("query").value =
+          sample.symbol === "US.IBIT" ? "IBIT bitcoin ETF inflow OR BTC news" : `${sample.symbol} latest news`;
+        persistDashboardState();
+      }
+
+      function updateFormFromEvent(event) {
+        if (!event) return;
+        document.getElementById("symbol").value = event.symbol || "";
+        document.getElementById("headline").value = event.headline || "";
+        document.getElementById("body").value = event.body || "";
+        document.getElementById("sentiment").value = event.sentiment ?? 0;
+        if (event.price) document.getElementById("price").value = event.price;
+        if (event.quantity) document.getElementById("quantity").value = event.quantity;
+        persistDashboardState();
+      }
+
+      async function refreshLiveSnapshot(silent = false, options = {}) {
+        if (liveBusy) {
+          if (!silent) {
+            setStatus("上一轮刷新还没跑完，我会在它结束后继续。");
+          }
+          document.getElementById("live-state").textContent = autoRefreshEl.checked ? "AUTO WAIT" : "MANUAL";
+          document.getElementById("live-meta").textContent = `Broker ${brokerEl.value} | 上一轮刷新仍在运行`;
+          return;
+        }
+        liveBusy = true;
+        const symbols = watchlistEl.value.trim() || document.getElementById("symbol").value.trim() || "US.IBIT";
+        const useLlm = analysisModeEl.value === "llm";
+        const llmMode = currentLlmMode();
+        const translate = translateZhEl.checked;
+        const autoTrade = autoTradeEl.checked;
+        if (!silent) {
+          setStatus("正在刷新实时看板...");
+        }
+        document.getElementById("live-state").textContent = autoRefreshEl.checked ? "AUTO RUN" : "MANUAL";
+        document.getElementById("live-meta").textContent = `Broker ${brokerEl.value} | 后台刷新中...`;
+
+        try {
+          const res = await fetch(
+            `/demo/live-snapshot?symbols=${encodeURIComponent(symbols)}&broker=${encodeURIComponent(brokerEl.value)}&llm=${useLlm}&llm_mode=${encodeURIComponent(llmMode)}&translate=${translate}&auto_trade=${autoTrade}`,
+            { headers: ownerHeaders() }
+          );
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+          }
+          const snapshot = await res.json();
+          const selected = snapshot.scan?.selected || null;
+          const scanError = snapshot.errors?.scan || null;
+          const autoTradeResult = snapshot.auto_trade || null;
+          const autoTradeNote = autoTrade
+            ? autoTradeResult?.triggered
+              ? `自动执行已触发 ${autoTradeResult.selected_symbol || ""}`.trim()
+              : autoTradeResult?.reason || "自动执行本轮未触发"
+            : options.note;
+          const refreshedAt = new Date().toLocaleTimeString();
+          applyLiveSnapshot(snapshot, {
+            refreshedAt,
+            stateLabel: autoRefreshEl.checked ? (autoTrade ? "AUTO TRADE" : "AUTO ON") : "MANUAL",
+            note: autoTradeNote,
+          });
+          lastRefreshEl.value = new Date().toLocaleTimeString();
+          runtimeNoteEl.textContent = scanError
+            ? `Live ${brokerEl.value} · ${useLlm ? `LLM/${llmMode}` : "Mock"} · scan fallback`
+            : `Live ${brokerEl.value} · ${useLlm ? `LLM/${llmMode}` : "Mock"}`;
+          persistDashboardState();
+          setStatus(
+            scanError
+              ? `实时看板已更新：扫描这次失败了，但组合、订单和收益已经刷新。${scanError}`
+              : autoTrade && autoTradeResult?.triggered
+                ? `实时看板已更新：已自动执行 ${autoTradeResult.selected_symbol || "候选标的"}。`
+                : selected
+                ? `实时看板已更新：当前候选 ${selected.symbol}，动作 ${selected.action}，置信度 ${formatNumber(selected.confidence)}`
+                : "实时看板已更新。"
+          );
+        } catch (error) {
+          runtimeNoteEl.textContent = "实时刷新失败";
+          setRawJson({ error: String(error) }, { persist: false });
+          setStatus(`实时刷新失败：${error.message || error}`);
+          document.getElementById("live-state").textContent = autoRefreshEl.checked ? "AUTO ERR" : "MANUAL";
+          document.getElementById("live-meta").textContent = `Broker ${brokerEl.value} | 刷新失败`;
+        } finally {
+          liveBusy = false;
+        }
+      }
+
+      async function primePortfolioSummary() {
+        const symbols = watchlistEl.value.trim() || document.getElementById("symbol").value.trim() || "US.IBIT";
+        const res = await fetch(
+          `/demo/portfolio?broker=${encodeURIComponent(brokerEl.value)}&symbols=${encodeURIComponent(symbols)}`
+        );
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        const portfolio = await res.json();
+        applyPortfolioSummary(portfolio);
+        renderPortfolioPositions(portfolio);
+      }
+
+      async function setTradingLock(locked) {
+        const endpoint = locked ? "/owner/lock" : "/owner/unlock";
+        const note = locked ? "Locked from dashboard" : "Unlocked from dashboard";
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: ownerHeaders(true),
+          body: JSON.stringify({ note }),
+        });
+        if (!res.ok) {
+          const errorText = await res.text();
+          throw new Error(errorText || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        renderOwnerControl(data.owner_control);
+        return data;
+      }
+
+      function restartAutoRefresh() {
+        if (autoRefreshHandle) {
+          window.clearTimeout(autoRefreshHandle);
+          autoRefreshHandle = null;
+        }
+        autoRefreshGeneration += 1;
+        if (!autoRefreshEl.checked) {
+          return;
+        }
+        const generation = autoRefreshGeneration;
+        const scheduleNext = () => {
+          if (!autoRefreshEl.checked || generation !== autoRefreshGeneration) {
+            return;
+          }
+          const seconds = Math.max(5, Number(refreshIntervalEl.value || 20));
+          autoRefreshHandle = window.setTimeout(async () => {
+            if (generation !== autoRefreshGeneration || !autoRefreshEl.checked) {
+              return;
+            }
+            await refreshLiveSnapshot(true);
+            scheduleNext();
+          }, seconds * 1000);
+        };
+        scheduleNext();
+      }
+
+      async function loadConfig() {
+        restoreChartOpenState();
+        initializeDashboardStructure();
+        restoreCachedRawJson();
+        restoreCachedSnapshot();
+        if (configSearchEl) {
+          configSearchEl.value = getConfigSearch();
+        }
+        const [configRes, catalogRes] = await Promise.all([
+          fetch("/demo/config"),
+          fetch("/demo/config-catalog"),
+        ]);
+        demoConfig = await configRes.json();
+        const configCatalogPayload = await catalogRes.json();
+        renderOwnerControl(demoConfig.owner_control);
+        configCenterEl.open = restoreCollapsibleState("config-center");
+        renderConfigCatalog(configCatalogPayload);
+        chips.innerHTML = "";
+        [
+          `Broker default: ${demoConfig.default_broker}`,
+          `Auto trade default: ${demoConfig.auto_trade_enabled ? "on" : "off"}`,
+          `Model: ${demoConfig.llm_model || "未配置"}`,
+          `LLM mode: ${demoConfig.llm_mode || "primary"}`,
+          `Primary: ${demoConfig.llm_model_primary || "未配置"}`,
+          `Fallback: ${demoConfig.llm_model_fallback || "未配置"}`,
+          `Intel agent: ${demoConfig.agent_stack?.intel?.model || "未配置"}`,
+          `Analysis agent: ${demoConfig.agent_stack?.analysis?.model || "未配置"}`,
+          `Review agent: ${demoConfig.agent_stack?.review?.model || "未配置"}`,
+          `Risk agent: ${demoConfig.agent_stack?.risk?.model || "未配置"}`,
+          `Latency budget: ${demoConfig.latency_budget_ms || 5000}ms`,
+          `Provider: ${demoConfig.llm_provider || "mock"}`,
+          `Watchlist size: ${(demoConfig.allowed_symbols || []).length}`,
+          `Translate default: ${demoConfig.translate_to_zh ? "on" : "off"}`,
+          demoConfig.authorization?.enabled
+            ? `Auth: ${demoConfig.authorization.can_run ? "ready" : "blocked"} / ${demoConfig.authorization.mode || "off"}`
+            : "Auth: off",
+          demoConfig.owner_control?.enabled ? `Owner control: ${demoConfig.owner_control.trading_locked ? "locked" : "open"}` : "Owner control: off",
+          demoConfig.llm_ready ? "LLM ready" : "LLM key missing",
+        ].forEach((text) => {
+          const chip = document.createElement("div");
+          chip.className = "chip";
+          chip.textContent = text;
+          chips.appendChild(chip);
+        });
+        document.getElementById("provider-name").textContent = demoConfig.llm_provider || "mock";
+        document.getElementById("provider-model").textContent =
+          demoConfig.llm_ready
+            ? `分析 ${demoConfig.agent_stack?.analysis?.model || demoConfig.llm_model || "模型未配置"} / ${demoConfig.llm_mode || "primary"}`
+            : "Deterministic Factor Pipeline";
+        document.getElementById("provider-agents").textContent =
+          `抓取 ${demoConfig.agent_stack?.intel?.model || "未配置"} | 复核 ${demoConfig.agent_stack?.review?.model || "未配置"} | 风控 ${demoConfig.agent_stack?.risk?.model || "未配置"}`;
+
+        brokerEl.value = demoConfig.default_broker || "local_paper";
+        watchlistEl.value = (demoConfig.allowed_symbols || ["US.IBIT"]).join(",");
+        llmModeEl.value = demoConfig.llm_mode || "primary";
+        translateZhEl.checked = Boolean(demoConfig.translate_to_zh);
+        autoTradeEl.checked = Boolean(demoConfig.auto_trade_enabled);
+        if (!demoConfig.llm_ready) {
+          analysisModeEl.value = "mock";
+        }
+        const restoredState = restoreDashboardState();
+        if (!restoredState) {
+          if (demoConfig.llm_ready) {
+            analysisModeEl.value = "llm";
+          }
+          fillSample();
+        }
+        persistDashboardState();
+        restartAutoRefresh();
+        try {
+          await primePortfolioSummary();
+        } catch (error) {
+          console.warn("primePortfolioSummary failed", error);
+        }
+        await refreshLiveSnapshot();
+      }
+
+      [
+        watchlistEl,
+        document.getElementById("symbol"),
+        document.getElementById("query"),
+        document.getElementById("quantity"),
+        document.getElementById("sentiment"),
+        document.getElementById("price"),
+        document.getElementById("headline"),
+        document.getElementById("body"),
+        analysisModeEl,
+        brokerEl,
+        llmModeEl,
+        translateZhEl,
+        autoRefreshEl,
+        autoTradeEl,
+        refreshIntervalEl,
+      ].forEach((element) => {
+        if (!element) return;
+        element.addEventListener("change", persistDashboardState);
+        if (element.tagName === "INPUT" || element.tagName === "TEXTAREA") {
+          element.addEventListener("input", persistDashboardState);
+        }
+      });
+
+      sampleButton.addEventListener("click", fillSample);
+      configCenterEl.addEventListener("toggle", () => {
+        persistCollapsibleState("config-center", configCenterEl.open);
+      });
+      configSearchEl.addEventListener("input", () => {
+        setConfigSearch(configSearchEl.value || "");
+        if (configCatalog) {
+          renderConfigCatalog(configCatalog);
+        }
+      });
+      configGenerateButton.addEventListener("click", () => {
+        generateConfigDraft(true);
+      });
+      configCopyButton.addEventListener("click", async () => {
+        generateConfigDraft(false);
+        try {
+          await navigator.clipboard.writeText(configOutputEl.value || "");
+          setStatus("配置草稿已复制到剪贴板。");
+        } catch (error) {
+          setStatus(`复制失败：${error.message || error}`);
+        }
+      });
+      configResetButton.addEventListener("click", () => {
+        window.localStorage.removeItem(STORAGE_KEYS.configDraft);
+        window.localStorage.removeItem(STORAGE_KEYS.configSearch);
+        if (configSearchEl) {
+          configSearchEl.value = "";
+        }
+        if (configCatalog) {
+          renderConfigCatalog(configCatalog);
+        }
+        setStatus("已恢复为当前环境快照，未写入任何服务器配置。");
+      });
+      ownerLockButton.addEventListener("click", async () => {
+        try {
+          const data = await setTradingLock(true);
+          setStatus("交易已锁定，后续写操作会被拦下。");
+          setRawJson(data);
+        } catch (error) {
+          setStatus(`锁定失败：${error.message || error}`);
+        }
+      });
+      ownerUnlockButton.addEventListener("click", async () => {
+        try {
+          const data = await setTradingLock(false);
+          setStatus("交易已解锁。");
+          setRawJson(data);
+        } catch (error) {
+          setStatus(`解锁失败：${error.message || error}`);
+        }
+      });
+      demoProfitButton.addEventListener("click", () => {
+        fillSample();
+        document.getElementById("quantity").value = 3;
+        document.getElementById("sentiment").value = 0.84;
+        document.getElementById("price").value = 52.4;
+        document.getElementById("headline").value = "Spot BTC demand improves as ETF inflows stay strong and macro tone softens";
+        document.getElementById("body").value = "ETF flow chatter, crypto market breadth, and risk-on sentiment all point to firmer near-term demand for IBIT.";
+        form.requestSubmit();
+      });
+      latencyTestButton.addEventListener("click", async () => {
+        const useLlm = analysisModeEl.value === "llm";
+        const llmMode = currentLlmMode();
+        const symbols = watchlistEl.value.trim() || document.getElementById("symbol").value.trim() || "US.IBIT";
+        setStatus("正在执行 5 秒窗口压测...");
+        try {
+          const res = await fetch(
+            `/demo/latency-budget?symbols=${encodeURIComponent(symbols)}&llm=${useLlm}&llm_mode=${encodeURIComponent(llmMode)}&budget_ms=${encodeURIComponent(demoConfig?.latency_budget_ms || 5000)}`
+          );
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+          }
+          const data = await res.json();
+          setRawJson(data);
+          setStatus(
+            data.within_budget
+              ? `压测通过：${formatNumber(data.elapsed_ms, 0)}ms / ${formatNumber(data.budget_ms, 0)}ms`
+              : `压测超预算：${formatNumber(data.elapsed_ms, 0)}ms / ${formatNumber(data.budget_ms, 0)}ms`
+          );
+        } catch (error) {
+          setStatus(`压测失败：${error.message || error}`);
+        }
+      });
+      liveRefreshButton.addEventListener("click", () => refreshLiveSnapshot());
+      autoRefreshEl.addEventListener("change", restartAutoRefresh);
+      refreshIntervalEl.addEventListener("change", restartAutoRefresh);
+      analysisModeEl.addEventListener("change", () => refreshLiveSnapshot(true));
+      llmModeEl.addEventListener("change", () => {
+        if (analysisModeEl.value === "llm") {
+          refreshLiveSnapshot(true);
+        }
+      });
+      brokerEl.addEventListener("change", async () => {
+        try {
+          await primePortfolioSummary();
+        } catch (error) {
+          console.warn("primePortfolioSummary failed", error);
+        }
+        refreshLiveSnapshot(true);
+      });
+      watchlistEl.addEventListener("change", async () => {
+        try {
+          await primePortfolioSummary();
+        } catch (error) {
+          console.warn("primePortfolioSummary failed", error);
+        }
+        refreshLiveSnapshot(true);
+      });
+
+      fetchButton.addEventListener("click", async () => {
+        const useLlm = analysisModeEl.value === "llm";
+        const llmMode = currentLlmMode();
+        const symbol = document.getElementById("symbol").value;
+        const query = document.getElementById("query").value;
+        const translate = translateZhEl.checked;
+        setStatus("正在抓取网络情报并执行分析...");
+        runtimeNoteEl.textContent = "抓取中";
+        rawJsonEl.textContent = "Loading...";
+
+        try {
+          const res = await fetch(
+            `/demo/fetch-and-analyze?symbol=${encodeURIComponent(symbol)}&query=${encodeURIComponent(query)}&broker=${encodeURIComponent(brokerEl.value)}&llm=${useLlm}&llm_mode=${encodeURIComponent(llmMode)}&translate=${translate}`,
+            {
+              headers: ownerHeaders(false),
+            }
+          );
+          if (!res.ok) {
+            const errorText = await res.text();
+            throw new Error(errorText || `HTTP ${res.status}`);
+          }
+          const data = await res.json();
+          updateFormFromEvent(data.event);
+          setRawJson(data);
+          await refreshLiveSnapshot(true);
+          const sourceSummary = data.event?.metadata?.sources || {};
+          setStatus(
+            `抓取完成：Google News ${sourceSummary.google_news_count || 0} 条，xreach ${sourceSummary.xreach_count || 0} 条。`
+          );
+        } catch (error) {
+          runtimeNoteEl.textContent = "抓取失败";
+          rawJsonEl.textContent = String(error);
+          setStatus(`抓取失败：${error.message || error}`);
+        }
+      });
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const useLlm = analysisModeEl.value === "llm";
+        const llmMode = currentLlmMode();
+        const translate = translateZhEl.checked;
+        const payload = {
+          event_type: "news",
+          source: "demo-ui",
+          symbol: document.getElementById("symbol").value,
+          headline: document.getElementById("headline").value,
+          body: document.getElementById("body").value,
+          sentiment: Number(document.getElementById("sentiment").value),
+          price: Number(document.getElementById("price").value),
+          quantity: Number(document.getElementById("quantity").value),
+          metadata: {
+            submitted_from: "demo-ui",
+          },
+        };
+
+        setStatus("正在提交手工事件...");
+        runtimeNoteEl.textContent = "执行中";
+        rawJsonEl.textContent = "Loading...";
+
+        try {
+          const res = await fetch(
+            `/signals/manual?broker=${encodeURIComponent(brokerEl.value)}&llm=${useLlm}&llm_mode=${encodeURIComponent(llmMode)}&translate=${translate}`,
+            {
+              method: "POST",
+              headers: ownerHeaders(true),
+              body: JSON.stringify(payload),
+            }
+          );
+          if (!res.ok) {
+            const errorText = await res.text();
+            throw new Error(errorText || `HTTP ${res.status}`);
+          }
+          const data = await res.json();
+          setRawJson(data);
+          await refreshLiveSnapshot(true);
+          setStatus("手工事件已执行，实时看板已刷新。");
+        } catch (error) {
+          runtimeNoteEl.textContent = "执行失败";
+          rawJsonEl.textContent = String(error);
+          setStatus(`执行失败：${error.message || error}`);
+        }
+      });
+
+      loadConfig().catch((error) => {
+        setStatus(`初始化失败：${error.message || error}`);
+      });
+    </script>
+  </body>
+</html>

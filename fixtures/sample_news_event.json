@@ -1,0 +1,14 @@
+{
+  "event_type": "news",
+  "source": "fixture",
+  "symbol": "US.AAPL",
+  "headline": "Positive product demand headline",
+  "body": "Synthetic ignition fixture for the shortest trading loop.",
+  "sentiment": 0.82,
+  "price": 150.0,
+  "quantity": 1,
+  "metadata": {
+    "category": "earnings_reaction",
+    "fixture": true
+  }
+}
